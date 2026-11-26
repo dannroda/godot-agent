@@ -111,6 +111,7 @@ var _mode_button: OptionButton
 var _mode_strip: PanelContainer
 var _mode_segments: HBoxContainer
 var _mode_more: MenuButton
+var _mode_hint: Label
 var _modes: Array[Dictionary] = []
 var _current_mode: int = -1
 var _model_button: OptionButton
@@ -277,6 +278,16 @@ func _ready() -> void:
 	row.move_child(_mode_strip, _add_menu.get_index() + 1)
 	row.add_child(_mode_button)
 	row.move_child(_mode_button, _mode_strip.get_index() + 1)
+	# Lo que hace el modo elegido, solo en la caja de la app (m21-19): en el dock va en el tooltip.
+	_mode_hint = Label.new()
+	_mode_hint.name = "ModeHint"
+	_mode_hint.visible = false
+	_mode_hint.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	_mode_hint.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_mode_hint.clip_text = true
+	_mode_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(_mode_hint)
+	row.move_child(_mode_hint, _mode_button.get_index() + 1)
 	set_modes(_modes)
 	if _current_mode >= 0:
 		set_current_mode(_current_mode)
@@ -380,8 +391,20 @@ const BOX_PAD := 10.0
 var _boxed := false
 
 
+func _refresh_mode_hint() -> void:
+	if _mode_hint == null:
+		return
+	var hint := ""
+	for mode: Dictionary in _modes:
+		if int(mode.get("id", -1)) == _current_mode:
+			hint = str(mode.get("hint", ""))
+	_mode_hint.text = hint
+	_mode_hint.visible = _boxed and not hint.is_empty()
+
+
 func set_boxed(on: bool) -> void:
 	_boxed = on
+	_refresh_mode_hint()
 	if on:
 		var plain := StyleBoxEmpty.new()
 		plain.content_margin_left = AgentTheme.px(2)
@@ -716,6 +739,7 @@ func set_current_mode(mode: int) -> void:
 		_mode_button.select(index)
 		_refresh_mode_tooltip()
 		_refresh_mode_strip()
+		_refresh_mode_hint()
 		_queue_fit()  # otro nombre, otro ancho
 
 

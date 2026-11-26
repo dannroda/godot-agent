@@ -6957,3 +6957,21 @@ msgstr "Más"
 
 msgid "Other modes: %s"
 msgstr "Otros modos: %s"
+
+msgid "Only answers"
+msgstr "Solo responde"
+
+msgid "Reads and proposes a plan"
+msgstr "Lee y propone un plan"
+
+msgid "Reads and reports findings"
+msgstr "Lee y marca lo que encuentra"
+
+msgid "Edits; commands ask first"
+msgstr "Edita; los comandos preguntan"
+
+msgid "Edits and runs allowed commands"
+msgstr "Edita y corre los comandos permitidos"
+
+msgid "Works until the goal is met"
+msgstr "Trabaja hasta cumplir el objetivo"

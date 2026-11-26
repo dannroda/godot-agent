@@ -161,6 +161,15 @@ const MODE_TOOLTIPS: Dictionary = {
 	SessionModel.HarnessMode.AUTO: "The agent edits scenes, scripts and settings and runs the game without asking. Shell commands on the allowlist run on their own; any other asks (Settings → Permissions).",  # i18n
 	SessionModel.HarnessMode.ONESHOT: "The agent works autonomously until the goal is met, verifying after each task.",  # i18n
 }
+## Lo que hace cada modo en pocas palabras: junto a sus botones en la ventana de la app (m21-19).
+const MODE_HINTS: Dictionary = {
+	SessionModel.HarnessMode.ASK: "Only answers",  # i18n
+	SessionModel.HarnessMode.PLAN: "Reads and proposes a plan",  # i18n
+	SessionModel.HarnessMode.REVIEW: "Reads and reports findings",  # i18n
+	SessionModel.HarnessMode.BUILD: "Edits; commands ask first",  # i18n
+	SessionModel.HarnessMode.AUTO: "Edits and runs allowed commands",  # i18n
+	SessionModel.HarnessMode.ONESHOT: "Works until the goal is met",  # i18n
+}
 ## Prompts enviados en este proyecto (flechas en el composer). Datos del usuario, fuera del repo.
 const PROMPT_HISTORY_PATH := "user://godot_agent/prompt_history.json"
 
@@ -693,13 +702,13 @@ func _apply_mode_items() -> void:
 	for mode: SessionModel.HarnessMode in SessionModel.HARNESS_MODE_LABELS:
 		if mode == SessionModel.HarnessMode.ONESHOT and not allow_oneshot:
 			continue
-		modes.append({"id": mode, "label": I18n.t(SessionModel.HARNESS_MODE_LABELS[mode]), "tooltip": I18n.t(MODE_TOOLTIPS[mode]), "pinned": mode in PINNED_MODES})
+		modes.append({"id": mode, "label": I18n.t(SessionModel.HARNESS_MODE_LABELS[mode]), "tooltip": I18n.t(MODE_TOOLTIPS[mode]), "hint": I18n.t(MODE_HINTS[mode]), "pinned": mode in PINNED_MODES})
 	if not _project_modes.is_empty():
 		modes.append({"separator": I18n.t("Project modes")})
 	for index: int in _project_modes.size():
 		var mode: Dictionary = _project_modes[index]
 		var base := _project_base_label(mode)
-		modes.append({"id": PROJECT_MODE_ID + index, "label": ProjectModes.label(mode, base), "tooltip": ProjectModes.summary(mode, base), "icon": str(mode.get("icon", ""))})
+		modes.append({"id": PROJECT_MODE_ID + index, "label": ProjectModes.label(mode, base), "tooltip": ProjectModes.summary(mode, base), "hint": str(mode.get("when_to_use", "")), "icon": str(mode.get("icon", ""))})
 	_composer.set_modes(modes)
 
 
