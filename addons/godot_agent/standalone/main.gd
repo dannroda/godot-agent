@@ -91,6 +91,7 @@ func _ready() -> void:
 	add_child(column)
 	column.add_child(_build_header(root))
 	_tabs = SessionTabs.new()
+	_tabs.accent = _settings.accent_color()
 	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_tabs.new_session_requested.connect(func(_in_copy: bool) -> void: open_tab())
 	_tabs.close_requested.connect(close_tab)

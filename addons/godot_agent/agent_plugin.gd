@@ -426,6 +426,7 @@ func _enter_tree() -> void:
 	log_panel.setup(_log)
 	log_panel.diagnostic_report = func() -> Dictionary: return _diagnostic_report(_tabs.active_id() if _tabs else PRIMARY_SESSION)
 	_tabs = SessionTabs.new()
+	_tabs.accent = _settings.accent_color()
 	_tabs.name = dock.name  # con la API vieja de docks, el título de la pestaña es el nombre del nodo
 	_tabs.add_session(PRIMARY_SESSION, dock, _model, I18n.t("Session 1"))
 	_tabs.notify_outside_enabled = _settings.notify_when_unfocused

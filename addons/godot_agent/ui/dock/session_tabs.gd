@@ -16,6 +16,9 @@ const NAME_MAX := 40
 const COPY_ICON := &"Duplicate"
 ## Ícono de la pestaña de la sesión principal, que no se cierra (m12-50).
 const PIN_ICON := &"Pin"
+## El punto de estado de cada pestaña (m21-03): trabajando y turno sin mirar. Esperarte va en `accent`.
+const BUSY_COLOR := Color("#4fc1a6")
+const UNREAD_COLOR := Color("#6ea8fe")
 
 const AgentTheme := preload("../agent_theme.gd")
 const I18n := preload("../../core/i18n.gd")
@@ -23,6 +26,8 @@ const EditorWindows := preload("../editor_windows.gd")
 const SessionModel := preload("../../session/session_model.gd")
 const DesktopNotifier := preload("../../editor/desktop_notifier.gd")
 
+## El color de lo que te espera (un permiso o una respuesta), el acento del harness.
+var accent := Color("#f0a85a")
 var _bar: TabBar
 ## La fila de pestañas: solo con dos sesiones o más (m12-14); con una, el «+» del dock abre otra.
 var _row: HBoxContainer
@@ -46,9 +51,9 @@ var _toasted: Dictionary = {}  # id -> true
 var notify_outside_enabled: Callable
 ## Sesiones que ya avisaron fuera del editor que esperan: uno por espera.
 var _outside_notified: Dictionary = {}  # id -> true
-## Sesiones que terminaron un turno sin ser la pestaña activa (m11-91): «◆» hasta que las mirás.
+## Sesiones que terminaron un turno sin ser la pestaña activa (m11-91): punto azul hasta que las mirás.
 var _unread: Dictionary = {}  # id -> true
-## «⚠ 2» / «◆ 1» en la fila: lleva a la próxima pestaña que te espera (m11-91).
+## «⚠ 2» / punto azul y «1» en la fila: lleva a la próxima pestaña que te espera (m11-91).
 var _attention_button: Button
 var _rename_popup: PopupPanel
 var _rename_edit: LineEdit
@@ -270,15 +275,20 @@ func _refresh_tab(id: String) -> void:
 	if not waiting:
 		_toasted.erase(id)
 		_outside_notified.erase(id)
-	var mark := "⚠ " if waiting else ("● " if model.is_busy() else ("◆ " if _unread.has(id) else ""))
+	# Un punto de color dice el estado: ámbar te espera (y «⚠», que se distingue sin color), verde
+	# trabajando, azul un turno terminado sin mirar (m21-03); va al lado del pin o de la copia.
+	var busy := model.is_busy()
+	var state_color := accent if waiting else (BUSY_COLOR if busy else (UNREAD_COLOR if _unread.has(id) else Color.TRANSPARENT))
 	# La principal (sin X, m7-44) lleva un pin con otra pestaña al lado (m12-50); nunca es una copia.
 	var pinned := is_pinned(id)
-	var tab_icon := AgentTheme.icon(PIN_ICON) if pinned else (AgentTheme.icon(COPY_ICON) if _copies.has(id) else null)
+	var base_icon := AgentTheme.icon(PIN_ICON) if pinned else (AgentTheme.icon(COPY_ICON) if _copies.has(id) else null)
+	var tab_icon := AgentTheme.dot_beside(state_color, base_icon) if state_color.a > 0.0 else base_icon
 	_bar.set_tab_icon(index, tab_icon)
 	if tab_icon:
-		_bar.set_tab_icon_max_width(index, AgentTheme.px(16))
+		_bar.set_tab_icon_max_width(index, tab_icon.get_width() if state_color.a > 0.0 else AgentTheme.px(16))
 	# Sin el ícono (fuera del editor), la copia conserva su «⎘»; el pin no tiene glifo: el tooltip alcanza.
-	_bar.set_tab_title(index, mark + ("⎘ " if _copies.has(id) and tab_icon == null else "") + str(_labels[id]))
+	var copy_mark := "⎘ " if _copies.has(id) and base_icon == null else ""
+	_bar.set_tab_title(index, ("⚠ " if waiting else "") + copy_mark + str(_labels[id]))
 	var tooltip := label(id) + ("\n" + str(_copies[id]) if _copies.has(id) else "")
 	if pinned:
 		tooltip += "\n" + I18n.t("Main session: it can't be closed. Review marks and Remote Control use it. To start over: + → New session.")
@@ -296,7 +306,7 @@ func _waiting_ids() -> Dictionary:
 	return waiting
 
 
-## El botón de la fila: cuántas otras pestañas te esperan («⚠»: un permiso o una respuesta; «◆»: un
+## El botón de la fila: cuántas otras pestañas te esperan («⚠»: un permiso o una respuesta; punto azul: un
 ## turno terminado sin mirar) y, en el tooltip, cuáles.
 func _refresh_attention() -> void:
 	if _attention_button == null:
@@ -313,7 +323,8 @@ func _refresh_attention() -> void:
 		elif _unread.has(id):
 			unread_names.append(str(_labels[id]))
 	_attention_button.visible = not (waiting_names.is_empty() and unread_names.is_empty())
-	_attention_button.text = ("⚠ %d" % waiting_names.size()) if not waiting_names.is_empty() else ("◆ %d" % unread_names.size())
+	_attention_button.text = ("⚠ %d" % waiting_names.size()) if not waiting_names.is_empty() else str(unread_names.size())
+	_attention_button.icon = null if not waiting_names.is_empty() else AgentTheme.dot(UNREAD_COLOR)
 	var lines: PackedStringArray = []
 	if not waiting_names.is_empty():
 		lines.append(I18n.t("Waiting for you: %s") % ", ".join(waiting_names))

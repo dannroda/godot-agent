@@ -115,6 +115,27 @@ static func dot(color: Color, side_px: float = 8.0) -> Texture2D:
 	return ImageTexture.create_from_image(image)
 
 
+## Un punto de `color` a la izquierda de `icon` (el estado de una pestaña junto a su pin, m21-03), con el
+## ícono a 16 px de alto como mucho; sin `icon` (o sin su imagen), el punto solo.
+static func dot_beside(color: Color, icon: Texture2D) -> Texture2D:
+	var marker := dot(color)
+	var picture := icon.get_image() if icon else null
+	if picture == null:
+		return marker
+	if picture.is_compressed():
+		picture.decompress()
+	picture.convert(Image.FORMAT_RGBA8)
+	if picture.get_height() > px(16):
+		picture.resize(maxi(1, picture.get_width() * px(16) / picture.get_height()), px(16), Image.INTERPOLATE_BILINEAR)
+	var point := marker.get_image()
+	var gap := px(4)
+	var height := maxi(point.get_height(), picture.get_height())
+	var image := Image.create(point.get_width() + gap + picture.get_width(), height, false, Image.FORMAT_RGBA8)
+	image.blit_rect(point, Rect2i(Vector2i.ZERO, point.get_size()), Vector2i(0, (height - point.get_height()) / 2))
+	image.blit_rect(picture, Rect2i(Vector2i.ZERO, picture.get_size()), Vector2i(point.get_width() + gap, (height - picture.get_height()) / 2))
+	return ImageTexture.create_from_image(image)
+
+
 static func panel(bg: Color, border: Color = Color.TRANSPARENT, radius: float = 6.0, padding: float = 8.0) -> StyleBoxFlat:
 	var box := StyleBoxFlat.new()
 	box.bg_color = bg

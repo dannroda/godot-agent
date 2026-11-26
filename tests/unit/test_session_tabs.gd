@@ -62,6 +62,8 @@ func test_main_tab_is_pinned() -> void:
 	var request := PermissionRequest.new()
 	model.add_permission(request)
 	assert_true(bar.get_tab_title(0).begins_with("⚠ ") and tabs.is_pinned("s1"), "⚠ y pin · " + bar.get_tab_title(0))
+	var icon := bar.get_tab_icon(0)
+	assert_true(icon != null and icon.get_image().get_pixel(icon.get_height() / 2, icon.get_height() / 2).is_equal_approx(tabs.accent), "y el punto en el acento (m21-03)")
 	request.cancel()
 	tabs.remove_session("s2")
 	assert_false(tabs.is_pinned("s1"), "sola otra vez, sin pin")
@@ -111,7 +113,7 @@ func test_notifies_outside_when_unfocused() -> void:
 	tabs.free()
 
 
-## m11-91: «◆» en la que terminó un turno sin ser la activa, hasta que la mirás; el botón de la fila
+## m11-91, m21-03: punto azul en la que terminó un turno sin ser la activa, hasta que la mirás; el botón de la fila
 ## cuenta las que te esperan y lleva a la próxima, primero las que esperan un permiso.
 func test_attention() -> void:
 	var tabs := SessionTabs.new()
@@ -125,8 +127,9 @@ func test_attention() -> void:
 	models[0].turn_finished.emit("end_turn")
 	assert_eq(bar.get_tab_title(0), "Session 1", "la activa no queda sin mirar")
 	models[2].turn_finished.emit("end_turn")
-	assert_true(bar.get_tab_title(2).begins_with("◆ "), "terminó sin mirarla · " + bar.get_tab_title(2))
-	assert_true(button.visible and button.text == "◆ 1" and button.tooltip_text.contains("Session 3"), "el botón la cuenta · %s" % button.text)
+	assert_true(bar.get_tab_icon(2) != null and bar.get_tab_title(2) == "Session 3", "terminó sin mirarla: punto, sin glifo · " + bar.get_tab_title(2))
+	assert_true(bar.get_tab_icon(2).get_image().get_pixel(bar.get_tab_icon(2).get_width() / 2, bar.get_tab_icon(2).get_height() / 2).is_equal_approx(SessionTabs.UNREAD_COLOR), "azul")
+	assert_true(button.visible and button.text == "1" and button.icon != null and button.tooltip_text.contains("Session 3"), "el botón la cuenta · %s" % button.text)
 	models[1].add_permission(PermissionRequest.new())
 	assert_true(button.text == "⚠ 1" and button.tooltip_text.contains("Waiting for you: Session 2"), "un permiso pesa más · %s" % button.text)
 	button.pressed.emit()
@@ -134,7 +137,7 @@ func test_attention() -> void:
 	models[1].cancel_pending_permissions()
 	button.pressed.emit()
 	assert_eq(tabs.active_id(), "s3", "después a la del turno sin mirar")
-	assert_eq(bar.get_tab_title(2), "Session 3", "mirarla saca la marca")
+	assert_true(bar.get_tab_title(2) == "Session 3" and bar.get_tab_icon(2) == null, "mirarla saca la marca")
 	assert_false(button.visible, "ya no queda nada")
 	models[1].turn_finished.emit("cancelled")
 	assert_false(button.visible, "un turno cancelado no cuenta")
