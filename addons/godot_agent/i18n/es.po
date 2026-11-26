@@ -6872,3 +6872,6 @@ msgstr "El editor de Godot está abierto en esta carpeta: las sesiones nuevas us
 
 msgid "No Godot editor is open on this folder: agents edit files with their own tools and check them with Godot headless. Open the editor on this folder and start a new session to use its godot.* tools."
 msgstr "No hay un editor de Godot abierto en esta carpeta: los agentes editan los archivos con sus propias tools y los comprueban con Godot headless. Abrí el editor en esta carpeta y empezá una sesión nueva para usar sus tools godot.*."
+
+msgid "More modes"
+msgstr "Más modos"

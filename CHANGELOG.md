@@ -16,6 +16,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Changed
 
+- **Plan, Build and Auto as buttons.** The mode is chosen with three buttons next to Send instead of a dropdown; **⋯** has the other modes (Ask, Review, One-shot and the project's modes), and shows the one in use when it's one of those. In a narrow dock it goes back to the dropdown.
 - **Undo turn only touches the turn's files.** It used to put the whole project back to before the turn, which with several tabs on the same folder also undid what the other tabs did afterwards. Now it reverts the files the turn changed, and the confirmation names those that changed again after the turn.
 
 ## [0.3.0] - 2026-11-24

@@ -16,8 +16,10 @@ static func dock_fits(dock: Control) -> PackedStringArray:
 		var button := node as BaseButton
 		if button.is_visible_in_tree() and button.get_global_rect().end.x > right + 1.0:
 			failures.append("«%s» queda fuera del dock (%d > %d)" % [_label(button), button.get_global_rect().end.x, right])
-	var mode_button: OptionButton = (dock.get(&"_composer") as Object).get(&"_mode_button")
-	if not mode_button.is_visible_in_tree():
+	var composer: Object = dock.get(&"_composer")
+	var mode_button: OptionButton = composer.get(&"_mode_button")
+	# Con ancho, los botones del modo (m21-02) en vez del desplegable.
+	if not mode_button.is_visible_in_tree() and not (composer.get(&"_mode_strip") as Control).is_visible_in_tree():
 		failures.append("no se ve el selector de modo")
 	return failures
 

@@ -256,6 +256,8 @@ var modes_dir: String = ""
 var _project_modes: Array[Dictionary] = []
 ## Los ids del selector de modos para los modos del proyecto: PROJECT_MODE_ID + su índice.
 const PROJECT_MODE_ID := 100
+## Los modos a la vista como botones en el composer (m21-02); los demás, en su «⋯».
+const PINNED_MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.PLAN, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO]
 var _context_watch := ContextWatch.new()
 var _handoff_banner: PanelContainer
 var _handoff_banner_label: Label
@@ -679,7 +681,7 @@ func _apply_mode_items() -> void:
 	for mode: SessionModel.HarnessMode in SessionModel.HARNESS_MODE_LABELS:
 		if mode == SessionModel.HarnessMode.ONESHOT and not allow_oneshot:
 			continue
-		modes.append({"id": mode, "label": I18n.t(SessionModel.HARNESS_MODE_LABELS[mode]), "tooltip": I18n.t(MODE_TOOLTIPS[mode])})
+		modes.append({"id": mode, "label": I18n.t(SessionModel.HARNESS_MODE_LABELS[mode]), "tooltip": I18n.t(MODE_TOOLTIPS[mode]), "pinned": mode in PINNED_MODES})
 	if not _project_modes.is_empty():
 		modes.append({"separator": I18n.t("Project modes")})
 	for index: int in _project_modes.size():
