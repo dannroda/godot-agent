@@ -6947,3 +6947,12 @@ msgstr "Agregar %s"
 
 msgid "The first time, its program is downloaded: it can take a minute. Then you sign in with the account it asks for, from the browser."
 msgstr "La primera vez se descarga su programa: puede tardar un minuto. Después iniciás sesión con la cuenta que pida, desde el navegador."
+
+msgid "%d open"
+msgstr "%d abiertas"
+
+msgid "live"
+msgstr "en vivo"
+
+msgid "View all the changes of the turn"
+msgstr "Ver todos los cambios del turno"

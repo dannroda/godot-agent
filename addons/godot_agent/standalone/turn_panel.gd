@@ -10,6 +10,8 @@ const TurnCounter := preload("../ui/turn_counter.gd")
 const SessionCoordinator := preload("../session/session_coordinator.gd")
 
 const WIDTH := 280
+const BUSY_COLOR := Color("#4fc1a6")
+const LOCK_ICON := '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'
 ## Archivos que se listan; los demás se cuentan.
 const MAX_FILES := 30
 
@@ -70,7 +72,18 @@ func _rebuild() -> void:
 	var controller: Object = controller_of.call(_session) if controller_of.is_valid() and not _session.is_empty() else null
 	var last: Dictionary = controller.get(&"last_turn_changes") if controller else {}
 	var files: Array = live.get("files", []) if not live.is_empty() else last.get("files", [])
-	_column.add_child(_title(I18n.t("This turn") if not live.is_empty() else (I18n.t("Last turn") if not last.is_empty() else I18n.t("This turn"))))
+	var head := HBoxContainer.new()
+	var title := _title(I18n.t("This turn") if not live.is_empty() else (I18n.t("Last turn") if not last.is_empty() else I18n.t("This turn")))
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	if not live.is_empty():
+		var badge := Label.new()
+		badge.name = "LiveBadge"
+		badge.text = I18n.t("live")
+		badge.add_theme_color_override(&"font_color", BUSY_COLOR)
+		badge.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color(BUSY_COLOR, 0.14), Color.TRANSPARENT, 9.0, 3.0))
+		head.add_child(badge)
+	_column.add_child(head)
 	if files.is_empty():
 		_column.add_child(_note(I18n.t("Nothing changed yet. The files a turn changes show here while the agent writes them.")))
 	else:
@@ -79,16 +92,6 @@ func _rebuild() -> void:
 			_column.add_child(_file_row(file))
 		if files.size() > MAX_FILES:
 			_column.add_child(_note(I18n.t("and %d more") % (files.size() - MAX_FILES)))
-		var view := Button.new()
-		view.name = "ViewChangesButton"
-		view.text = I18n.t("View changes")
-		view.custom_minimum_size.y = AgentTheme.px(34)
-		view.pressed.connect(func() -> void:
-			if not counter.latest(_session).is_empty():
-				counter.open(_session)
-			elif open_turn.is_valid() and not last.is_empty():
-				open_turn.call(last))
-		_column.add_child(view)
 	_column.add_child(HSeparator.new())
 	_column.add_child(_title(I18n.t("Taken by other sessions")))
 	var taken := 0
@@ -100,6 +103,21 @@ func _rebuild() -> void:
 			taken += 1
 	if taken == 0:
 		_column.add_child(_note(I18n.t("None: a file another session edits in its turn shows here, and is off limits to this one until that turn ends.")))
+	if not files.is_empty():
+		# Abajo de todo, como en el diseño: lo que se mira al final del turno.
+		var spacer := Control.new()
+		spacer.custom_minimum_size.y = AgentTheme.px(8)
+		_column.add_child(spacer)
+		var view := Button.new()
+		view.name = "ViewChangesButton"
+		view.text = I18n.t("View all the changes of the turn")
+		view.custom_minimum_size.y = AgentTheme.px(34)
+		view.pressed.connect(func() -> void:
+			if not counter.latest(_session).is_empty():
+				counter.open(_session)
+			elif open_turn.is_valid() and not last.is_empty():
+				open_turn.call(last))
+		_column.add_child(view)
 
 
 func _file_row(file: Dictionary) -> Control:
@@ -108,8 +126,14 @@ func _file_row(file: Dictionary) -> Control:
 	var status := str(file.get("status", "M"))
 	var badge := Label.new()
 	badge.text = status
-	badge.custom_minimum_size.x = AgentTheme.px(14)
-	badge.add_theme_color_override(&"font_color", AgentTheme.ADDED if status == "A" else (AgentTheme.REMOVED if status == "D" else AgentTheme.WARNING))
+	badge.custom_minimum_size = Vector2.ONE * AgentTheme.px(20)
+	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var tint := AgentTheme.ADDED if status == "A" else (AgentTheme.REMOVED if status == "D" else AgentTheme.WARNING)
+	badge.add_theme_color_override(&"font_color", tint)
+	badge.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color(tint, 0.16), Color.TRANSPARENT, 5.0, 0.0))
+	badge.add_theme_font_override(&"font", AgentTheme.mono_font())
+	badge.add_theme_font_size_override(&"font_size", AgentTheme.px(12))
 	badge.tooltip_text = {"A": I18n.t("Added file"), "D": I18n.t("Deleted file")}.get(status, I18n.t("Modified file"))
 	badge.mouse_filter = Control.MOUSE_FILTER_PASS
 	row.add_child(badge)
@@ -124,6 +148,11 @@ func _file_row(file: Dictionary) -> Control:
 
 func _taken_row(path: String, holder: String) -> Control:
 	var row := HBoxContainer.new()
+	row.add_theme_constant_override(&"separation", AgentTheme.px(6))
+	var lock := TextureRect.new()
+	lock.texture = AgentTheme.stroke_icon(LOCK_ICON, AgentTheme.MUTED, 14.0)
+	lock.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	row.add_child(lock)
 	row.add_child(_path_label(path.trim_prefix(root.path_join(""))))
 	var who := Label.new()
 	who.text = holder

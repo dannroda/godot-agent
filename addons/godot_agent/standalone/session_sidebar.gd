@@ -21,6 +21,7 @@ var accounts: Callable
 var _tabs: SessionTabs
 var _list: VBoxContainer
 var _accounts_box: VBoxContainer
+var _count: Label
 var _refresh_queued := false
 
 
@@ -32,10 +33,17 @@ func setup(tabs: SessionTabs) -> void:
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override(&"separation", AgentTheme.px(6))
 	add_child(column)
+	var title_row := HBoxContainer.new()
 	var title := Label.new()
 	title.text = I18n.t("Sessions")
 	title.modulate = Color(1, 1, 1, 0.6)
-	column.add_child(title)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_row.add_child(title)
+	_count = Label.new()
+	_count.name = "OpenCount"
+	_count.modulate = Color(1, 1, 1, 0.45)
+	title_row.add_child(_count)
+	column.add_child(title_row)
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -72,6 +80,7 @@ func _rebuild() -> void:
 		child.queue_free()
 	for id: String in _tabs.ids():
 		_list.add_child(_row(id))
+	_count.text = I18n.t("%d open") % _tabs.ids().size()
 	_fill_accounts()
 
 
@@ -151,6 +160,10 @@ func _row(id: String) -> Control:
 	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	top.add_child(dot)
 	top.add_child(_label(("⚠ " if state.waiting else "") + str(state.label), 1.0, true))
+	var mode := _label(str(info.get("mode", "")), 0.55)
+	mode.clip_text = false
+	mode.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
+	top.add_child(mode)
 	if state.closable:
 		var close := Button.new()
 		close.flat = true
@@ -160,7 +173,7 @@ func _row(id: String) -> Control:
 		close.pressed.connect(func() -> void: close_requested.emit(id))
 		top.add_child(close)
 	lines.add_child(_label(str(info.get("agent", "")), 0.65))
-	var status_label := _label(status.text + (" · " + str(info.mode) if not str(info.get("mode", "")).is_empty() else ""), 1.0)
+	var status_label := _label(status.text, 1.0)
 	status_label.add_theme_color_override(&"font_color", status.color if status.color != IDLE_COLOR else Color(AgentTheme.font_color(), 0.65))
 	lines.add_child(status_label)
 	return row
