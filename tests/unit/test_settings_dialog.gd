@@ -59,7 +59,7 @@ func test_loads_and_validates() -> void:
 	(dialog.get(&"_pause_spin") as SpinBox).value = 50
 	(dialog.get(&"_warn_spin") as SpinBox).value = 80
 	assert_eq(dialog.validate().get("section"), SettingsDialog.SettingsSection.ONESHOT, "pausa por debajo del aviso")
-	(dialog.get(&"_pause_check") as CheckBox).button_pressed = false
+	(dialog.get(&"_pause_check") as CheckButton).button_pressed = false
 	assert_true(dialog.validate().is_empty(), "sin pausa no importa el umbral")
 
 	(dialog.get(&"_roots_edit") as TextEdit).text = "/tmp/assets\nrelativa/no"
@@ -238,7 +238,7 @@ func test_on_open_setting() -> void:
 func test_run_error_setting() -> void:
 	var dialog := _dialog()
 	var settings: HarnessSettings = dialog.get(&"_settings")
-	var check: CheckBox = dialog.get(&"_run_error_check")
+	var check: CheckButton = dialog.get(&"_run_error_check")
 	assert_true(settings.offer_fix_on_run_error(), "por defecto ofrece arreglar")
 	assert_true(check.button_pressed, "la casilla lo refleja")
 	settings.set_value(HarnessSettings.KEY_RUN_ERROR_FIX, false)
@@ -294,21 +294,22 @@ func test_completion_advanced_folded() -> void:
 	page.free()
 
 
-## m12-26: la sección con cambios sin guardar lleva «•»; al volver al valor de antes se va.
+## m12-26: la sección con cambios sin guardar lleva un punto; al volver al valor de antes se va.
 func test_dirty_sections() -> void:
 	var dialog := _dialog()
 	var nav: ItemList = dialog.get(&"_nav")
 	dialog.call(&"_snapshot_sections")
 	var interface := SettingsDialog.SettingsSection.GENERAL
-	assert_false(nav.get_item_text(interface).begins_with("•"), "recién abierto, sin marcas")
-	var update_check: CheckBox = dialog.get(&"_update_check")
+	assert_true(nav.get_item_tooltip(interface).is_empty(), "recién abierto, sin marcas")
+	var update_check: CheckButton = dialog.get(&"_update_check")
 	update_check.button_pressed = not update_check.button_pressed
 	dialog.call(&"_refresh_dirty")
-	assert_true(nav.get_item_text(interface).begins_with("•"), "Interfaz cambió")
-	assert_false(nav.get_item_text(SettingsDialog.SettingsSection.AGENTS).begins_with("•"), "Agentes no")
+	assert_false(nav.get_item_tooltip(interface).is_empty(), "Interfaz cambió")
+	assert_true(nav.get_item_tooltip(SettingsDialog.SettingsSection.AGENTS).is_empty(), "Agentes no")
+	assert_true(not (dialog.get(&"_changes_label") as Label).text.is_empty(), "el pie dice qué sección tiene cambios (m21-17)")
 	update_check.button_pressed = not update_check.button_pressed
 	dialog.call(&"_refresh_dirty")
-	assert_false(nav.get_item_text(interface).begins_with("•"), "de vuelta como estaba")
+	assert_true(nav.get_item_tooltip(interface).is_empty(), "de vuelta como estaba")
 	dialog.free()
 
 

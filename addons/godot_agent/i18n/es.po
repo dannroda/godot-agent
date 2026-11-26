@@ -1150,7 +1150,7 @@ msgid "Project lines"
 msgstr "Líneas del proyecto"
 
 msgid "Project settings, export and addons"
-msgstr "Project settings, export y addons"
+msgstr "Ajustes del proyecto, exportar y addons"
 
 msgid "prompt"
 msgstr "prompt"
@@ -6950,3 +6950,6 @@ msgstr "en vivo"
 
 msgid "View all the changes of the turn"
 msgstr "Ver todos los cambios del turno"
+
+msgid "Unsaved changes: %s"
+msgstr "Cambios sin guardar: %s"

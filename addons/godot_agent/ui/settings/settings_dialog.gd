@@ -90,6 +90,9 @@ var _pages: Array[Control] = []
 ## Lo que tenía cada sección al abrir (m12-26): la que cambió lleva «•» en la lista de la izquierda.
 var _baseline: PackedStringArray = []
 var _dirty_timer: Timer
+var _dots: Array[Texture2D] = []
+## Al pie, junto a Guardar (m21-17): qué secciones tienen cambios sin guardar.
+var _changes_label: Label
 var _error_label: Label
 # Agentes
 var _profiles: Array[AgentProfile] = []
@@ -112,31 +115,31 @@ var _url_label: Label
 var _roots_edit: TextEdit
 var _max_output_spin: SpinBox
 var _max_image_spin: SpinBox
-var _manual_runs_check: CheckBox
-var _run_error_check: CheckBox
-var _notify_check: CheckBox
-var _verify_check: CheckBox
-var _path_rules_check: CheckBox
-var _criteria_check: CheckBox
+var _manual_runs_check: CheckButton
+var _run_error_check: CheckButton
+var _notify_check: CheckButton
+var _verify_check: CheckButton
+var _path_rules_check: CheckButton
+var _criteria_check: CheckButton
 var _criteria_max_spin: SpinBox
 var _turn_checks_editor: TurnChecksEditor
 var _hooks_editor: HooksEditor
-var _snapshots_check: CheckBox
-var _github_pr_check: CheckBox
-var _compact_tools_check: CheckBox
+var _snapshots_check: CheckButton
+var _github_pr_check: CheckButton
+var _compact_tools_check: CheckButton
 # One-shot y cuota
 var _budget_spins: Dictionary = {}
 var _loop_spin: SpinBox
 var _qa_spin: SpinBox
-var _spec_review_check: CheckBox
+var _spec_review_check: CheckButton
 ## id -> {weight: SpinBox, threshold: SpinBox}
 var _criteria_spins: Dictionary = {}
-var _checkpoints_check: CheckBox
+var _checkpoints_check: CheckButton
 var _warn_spin: SpinBox
 var _pause_spin: SpinBox
-var _pause_check: CheckBox
+var _pause_check: CheckButton
 var _resume_option: OptionButton
-var _reserve_check: CheckBox
+var _reserve_check: CheckButton
 # Completado
 var _completion_page: CompletionSettingsPage
 # Interfaz y export
@@ -144,7 +147,7 @@ var _accent_picker: ColorPickerButton
 var _dock_option: OptionButton
 var _language_option: OptionButton
 var _on_open_option: OptionButton
-var _update_check: CheckBox
+var _update_check: CheckButton
 var _update_status: Label
 var _update_button: Button
 ## «Buscar ahora» (m7-38): el plugin busca un release nuevo (y si hay, muestra el aviso en el dock);
@@ -182,9 +185,20 @@ func _build() -> void:
 	split.add_theme_constant_override(&"separation", AgentTheme.px(12))
 	root.add_child(split)
 	_nav = ItemList.new()
-	_nav.custom_minimum_size.x = AgentTheme.px(170)
+	_nav.custom_minimum_size.x = AgentTheme.px(200)
+	# Como en el diseño (m21-17): sin caja, la elegida con fondo, filas más altas.
+	_nav.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(0, 0, 0, 0.12), Color.TRANSPARENT, 10.0, 8.0))
+	_nav.add_theme_stylebox_override(&"selected", AgentTheme.panel(Color(1, 1, 1, 0.09), Color.TRANSPARENT, 8.0, 8.0))
+	_nav.add_theme_stylebox_override(&"selected_focus", AgentTheme.panel(Color(1, 1, 1, 0.11), Color.TRANSPARENT, 8.0, 8.0))
+	_nav.add_theme_stylebox_override(&"hovered", AgentTheme.panel(Color(1, 1, 1, 0.05), Color.TRANSPARENT, 8.0, 8.0))
+	_nav.add_theme_stylebox_override(&"focus", StyleBoxEmpty.new())
+	_nav.add_theme_stylebox_override(&"cursor", StyleBoxEmpty.new())
+	_nav.add_theme_stylebox_override(&"cursor_unfocused", StyleBoxEmpty.new())
+	_nav.add_theme_constant_override(&"v_separation", AgentTheme.px(10))
+	_nav.add_theme_color_override(&"guide_color", Color.TRANSPARENT)
+	_nav.add_theme_constant_override(&"h_separation", AgentTheme.px(8))
 	for label: String in SECTION_LABELS:
-		_nav.add_item(I18n.t(label))
+		_nav.add_item(I18n.t(label), _clean_dot())
 	_nav.item_selected.connect(_show_section)
 	split.add_child(_nav)
 	var pages := MarginContainer.new()
@@ -198,6 +212,8 @@ func _build() -> void:
 		page.add_theme_constant_override(&"separation", AgentTheme.px(8))
 		scroll.add_child(page)
 		builder.call(page)
+		if builder != _build_agents and builder != _build_completion:
+			_into_cards(page)
 		pages.add_child(scroll)
 		_pages.append(scroll)
 	_error_label = Label.new()
@@ -232,6 +248,19 @@ func _group_buttons() -> void:
 	push.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(push)
 	box.move_child(push, 0)
+	_changes_label = Label.new()
+	_changes_label.name = "ChangesLabel"
+	_changes_label.add_theme_color_override(&"font_color", AgentTheme.WARNING)
+	_changes_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_changes_label.clip_text = true
+	_changes_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_child(_changes_label)
+	box.move_child(_changes_label, 0)
+	push.size_flags_horizontal = Control.SIZE_FILL
+	var accent := _settings.accent_color() if _settings else AgentTheme.WARNING
+	AgentTheme.style_accent_button(get_ok_button(), accent, 8, 8)
+	for button: Button in [get_ok_button(), get_cancel_button()]:
+		button.custom_minimum_size = Vector2(AgentTheme.px(96), AgentTheme.px(36))
 
 
 ## Un resumen de los valores de una sección, para saber si cambió.
@@ -263,11 +292,29 @@ func _snapshot_sections() -> void:
 	_refresh_dirty()
 
 
+## El punto de una sección con cambios sin guardar (a la izquierda del nombre), o uno transparente del
+## mismo tamaño para que los nombres queden alineados.
+func _dirty_dot() -> Texture2D:
+	if _dots.is_empty():
+		_dots = [AgentTheme.dot(Color.TRANSPARENT, 7.0), AgentTheme.dot(_accent_picker.color if _accent_picker else AgentTheme.WARNING, 7.0)]
+	return _dots[1]
+
+
+func _clean_dot() -> Texture2D:
+	_dirty_dot()
+	return _dots[0]
+
+
 func _refresh_dirty() -> void:
+	var dirty: PackedStringArray = []
 	for i in mini(_pages.size(), _baseline.size()):
 		var changed := section_state(i) != _baseline[i]
-		_nav.set_item_text(i, ("• " if changed else "") + I18n.t(SECTION_LABELS[i]))
+		_nav.set_item_icon(i, _dirty_dot() if changed else _clean_dot())
 		_nav.set_item_tooltip(i, I18n.t("Changed: not saved yet") if changed else "")
+		if changed:
+			dirty.append(I18n.t(SECTION_LABELS[i]))
+	if _changes_label:
+		_changes_label.text = "" if dirty.is_empty() else (I18n.t("Unsaved changes: %s") % ", ".join(dirty))
 
 
 ## El registro de ACP, encima de Ajustes (también para reinstalar un agente que falla, m12-13).
@@ -510,16 +557,16 @@ func _build_permissions(page: VBoxContainer) -> void:
 func _build_after_turn(page: VBoxContainer) -> void:
 	page.add_child(_scoped_title(I18n.t("After each turn"), SettingsScope.PROJECT))
 	page.add_child(_hint(I18n.t("What the harness does when a turn of the agent ends, in Build and Auto.")))
-	_verify_check = CheckBox.new()
+	_verify_check = CheckButton.new()
 	_verify_check.text = I18n.t("Check the scripts after each turn")
 	_verify_check.tooltip_text = I18n.t("In Build and Auto, when a turn ends the harness validates the scripts that changed. If one doesn't parse, the agent gets the errors to fix them (up to 2 turns in a row); then they stay as a notice in the chat.")
 	page.add_child(_verify_check)
-	_path_rules_check = CheckBox.new()
+	_path_rules_check = CheckButton.new()
 	_path_rules_check.name = "PathRules"
 	_path_rules_check.text = I18n.t("Apply the project's rules by file")
 	_path_rules_check.tooltip_text = I18n.t("When a turn touches a file that matches a rule in .agents/rules, .claude/rules or .cursor/rules, the next prompt carries that rule, once per session. Rules the active agent already loads on its own aren't sent again.")
 	page.add_child(_path_rules_check)
-	_snapshots_check = CheckBox.new()
+	_snapshots_check = CheckButton.new()
 	_snapshots_check.text = I18n.t("Keep a snapshot of the project on each turn (git)")
 	_snapshots_check.tooltip_text = I18n.t("In Build and Auto, each turn ends with a notice of the files it changed, to see their diff and go back. The snapshots are git commits outside your branches (refs/godot-agent/turns); your branch, index and stash are not touched.")
 	page.add_child(_snapshots_check)
@@ -528,7 +575,7 @@ func _build_after_turn(page: VBoxContainer) -> void:
 	_hooks_editor = HooksEditor.new()
 	page.add_child(_hooks_editor)
 	page.add_child(_scoped_title(I18n.t("Plans"), SettingsScope.PROJECT))
-	_criteria_check = CheckBox.new()
+	_criteria_check = CheckButton.new()
 	_criteria_check.name = "VerifyPlanCriteria"
 	_criteria_check.text = I18n.t("Verify a plan's acceptance criteria by playing")
 	_criteria_check.tooltip_text = I18n.t("When you approve a plan with criteria like «WHEN …, THE GAME SHALL …», after the build an agent plays the game once per criterion. A criterion that fails goes back to the agent to fix and is played again. Each criterion is one playtest. The plan card can turn it off for that plan.")
@@ -537,12 +584,12 @@ func _build_after_turn(page: VBoxContainer) -> void:
 	_criteria_max_spin.name = "VerifyPlanCriteriaMax"
 	_criteria_max_spin.tooltip_text = I18n.t("The rest stay unplayed; the final notice offers to verify them.")
 	page.add_child(_scoped_title(I18n.t("Games you run yourself"), SettingsScope.USER))
-	_run_error_check = CheckBox.new()
+	_run_error_check = CheckButton.new()
 	_run_error_check.text = I18n.t("When a game you run by hand stops with an error, offer «Fix with the agent» in the dock")
 	_run_error_check.tooltip_text = I18n.t("The notice shows the error and the stack, once per run; nothing goes to the agent until you press the button. Runs started by the agent don't show it: the agent already gets its errors.")
 	page.add_child(_run_error_check)
 	page.add_child(_scoped_title(I18n.t("Separate copies (git worktree)"), SettingsScope.PROJECT))
-	_github_pr_check = CheckBox.new()
+	_github_pr_check = CheckButton.new()
 	_github_pr_check.text = I18n.t("Offer to push and open a GitHub pull request when closing a separate copy")
 	_github_pr_check.tooltip_text = I18n.t("Uses git push and the gh CLI. Off by default: otherwise the harness never pushes.")
 	page.add_child(_github_pr_check)
@@ -568,11 +615,11 @@ func _build_advanced(page: VBoxContainer) -> void:
 	page.add_child(_scoped_title(I18n.t("Tool results"), SettingsScope.PROJECT))
 	_max_output_spin = _spin_row(page, I18n.t("Max characters per result"), 1000, 200000, 1000, "")
 	_max_image_spin = _spin_row(page, I18n.t("Max screenshot side"), 256, 4096, 16, "px")
-	_compact_tools_check = CheckBox.new()
+	_compact_tools_check = CheckButton.new()
 	_compact_tools_check.text = I18n.t("Compact tool list: the agent finds the extra godot tools with godot.methods")
 	_compact_tools_check.tooltip_text = I18n.t("The tool list keeps reading, scene editing and running the game; tilemaps, animation, resources, files, project settings, API docs and the live game go through godot.methods and godot.run. Saves context on every turn. Applies from the next session.")
 	page.add_child(_compact_tools_check)
-	_manual_runs_check = CheckBox.new()
+	_manual_runs_check = CheckButton.new()
 	_manual_runs_check.text = I18n.t("Use the playtest autoload also when running the game manually")
 	page.add_child(_manual_runs_check)
 	_build_export(page)
@@ -586,10 +633,10 @@ func _build_oneshot(page: VBoxContainer) -> void:
 	_budget_spins["minutes"] = _spin_row(page, I18n.t("Time"), 1, 600, 1, "min")
 	_budget_spins["tokens"] = _spin_row(page, I18n.t("Tokens"), 10000, 20000000, 10000, "")
 	_budget_spins["playtests"] = _spin_row(page, I18n.t("Playtests"), 1, 100, 1, "")
-	_checkpoints_check = CheckBox.new()
+	_checkpoints_check = CheckButton.new()
 	_checkpoints_check.text = I18n.t("Create a git checkpoint before each One-shot task")
 	page.add_child(_checkpoints_check)
-	_spec_review_check = CheckBox.new()
+	_spec_review_check = CheckButton.new()
 	_spec_review_check.text = I18n.t("Review the spec before building (the agent writes it and waits for “Approve spec”)")
 	page.add_child(_spec_review_check)
 	_loop_spin = _spin_row(page, I18n.t("Loop: identical repetitions"), 2, 20, 1, "")
@@ -629,7 +676,7 @@ func _build_quota(page: VBoxContainer) -> void:
 	page.add_child(_scoped_title(I18n.t("Plan quota"), SettingsScope.USER))
 	page.add_child(_hint(I18n.t("The ring next to the composer shows it. Warnings apply to every session; the pause, to the One-shot.")))
 	_warn_spin = _spin_row(page, I18n.t("Warn at"), 1, 100, 1, "%")
-	_pause_check = CheckBox.new()
+	_pause_check = CheckButton.new()
 	_pause_check.text = I18n.t("Pause the One-shot at the threshold (when the current task or turn ends)")
 	_pause_check.toggled.connect(func(on: bool) -> void: _pause_spin.editable = on)
 	page.add_child(_pause_check)
@@ -644,7 +691,7 @@ func _build_quota(page: VBoxContainer) -> void:
 	_resume_option.add_item(I18n.t("Wait for confirmation"), HarnessSettings.RESUME_CONFIRM)
 	row.add_child(_resume_option)
 	page.add_child(row)
-	_reserve_check = CheckBox.new()
+	_reserve_check = CheckButton.new()
 	_reserve_check.text = I18n.t("When an account runs out, continue the One-shot with the next account of the same agent")
 	_reserve_check.tooltip_text = I18n.t("Uses the accounts in the dock's agent menu, in that order, skipping the ones still exhausted. It resumes the same session. The run only pauses when none is left.")
 	page.add_child(_reserve_check)
@@ -704,12 +751,12 @@ func _build_general(page: VBoxContainer) -> void:
 	_on_open_option.add_item(I18n.t("Continue the last session"), HarnessSettings.ON_OPEN_CONTINUE)
 	row.add_child(_on_open_option)
 	page.add_child(row)
-	_notify_check = CheckBox.new()
+	_notify_check = CheckButton.new()
 	_notify_check.text = I18n.t("When the editor is in the background, notify me when the agent finishes or waits for me")
 	_notify_check.tooltip_text = I18n.t("The editor window asks for attention and, where available, a desktop notification appears (notify-send on Linux, the notification center on macOS).")
 	page.add_child(_notify_check)
 	page.add_child(_scoped_title(I18n.t("Updates"), SettingsScope.USER))
-	_update_check = CheckBox.new()
+	_update_check = CheckButton.new()
 	_update_check.text = I18n.t("Check for a new version when the editor opens (once a day)")
 	page.add_child(_update_check)
 	row = HBoxContainer.new()
@@ -1030,6 +1077,7 @@ func _style_matrix_cell(option: OptionButton, group: String, mode: SessionModel.
 	else:
 		option.remove_theme_stylebox_override(&"normal")
 	option.end_bulk_theme_override()
+	option.flat = not differs  # como en el diseño: solo la que difiere lleva caja
 	option.tooltip_text = I18n.t("Changed: the default is %s") % I18n.t(DECISION_LABELS[default_value]) if differs else ""
 
 
@@ -1274,17 +1322,47 @@ func _refresh_export() -> void:
 		_export_label.text = I18n.t("Presets without the filter: %s") % ", ".join(missing)
 
 
+## Título de un bloque como en el diseño (m21-17): en mayúsculas, chico y apagado. Lo que sigue hasta
+## el próximo título va en una tarjeta (_into_cards).
 func _title(text: String) -> Label:
 	var label := Label.new()
-	label.text = text
-	label.add_theme_font_size_override(&"font_size", AgentTheme.px(15))
+	label.text = text.to_upper()
+	label.add_theme_font_size_override(&"font_size", AgentTheme.px(12))
+	label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	label.set_meta(&"settings_title", true)
 	return label
+
+
+## Agrupa lo que hay entre títulos en tarjetas (m21-17). Lo que se estira (una lista, un editor de
+## texto) sigue estirándose dentro de la suya.
+static func _into_cards(page: VBoxContainer) -> void:
+	var card: VBoxContainer = null
+	for child: Node in page.get_children():
+		if not child is Control:
+			continue
+		if child.has_meta(&"settings_title"):
+			card = null
+			continue
+		if card == null:
+			var panel := PanelContainer.new()
+			panel.name = "Card"
+			panel.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(1, 1, 1, 0.035), Color(1, 1, 1, 0.1), 10.0, 14.0))
+			card = VBoxContainer.new()
+			card.add_theme_constant_override(&"separation", AgentTheme.px(10))
+			panel.add_child(card)
+			page.add_child(panel)
+			page.move_child(panel, child.get_index())
+		if (child as Control).size_flags_vertical & Control.SIZE_EXPAND:
+			card.get_parent().size_flags_vertical = Control.SIZE_EXPAND_FILL
+			card.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		child.reparent(card, false)
 
 
 ## Título de un bloque con a quién afecta (m12-57): «Este proyecto» (project_config.tres, por git) o
 ## «Vos» (esta máquina, todos los proyectos).
 func _scoped_title(text: String, scope: SettingsScope) -> HBoxContainer:
 	var row := HBoxContainer.new()
+	row.set_meta(&"settings_title", true)
 	var title := _title(text)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(title)
