@@ -56,9 +56,11 @@ func setup(tabs: SessionTabs) -> void:
 	add.name = "NewSessionButton"
 	add.text = "+ " + I18n.t("New session")
 	add.custom_minimum_size.y = AgentTheme.px(40)
-	# Borde y sin fondo, como en el diseño (Godot no dibuja bordes punteados).
-	add.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color.TRANSPARENT, Color(1, 1, 1, 0.22), 10.0, 6.0))
-	add.add_theme_stylebox_override(&"hover", AgentTheme.panel(Color(1, 1, 1, 0.05), Color(1, 1, 1, 0.3), 10.0, 6.0))
+	# Sin fondo y con borde punteado, como en el diseño (m21-18): StyleBoxFlat no hace punteados, se dibuja.
+	add.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color.TRANSPARENT, Color.TRANSPARENT, 10.0, 6.0))
+	add.add_theme_stylebox_override(&"hover", AgentTheme.panel(Color(1, 1, 1, 0.05), Color.TRANSPARENT, 10.0, 6.0))
+	add.add_theme_stylebox_override(&"pressed", AgentTheme.panel(Color(1, 1, 1, 0.08), Color.TRANSPARENT, 10.0, 6.0))
+	add.draw.connect(func() -> void: draw_dashed_border(add, Color(1, 1, 1, 0.28)))
 	add.pressed.connect(func() -> void: new_requested.emit())
 	column.add_child(add)
 	_accounts_card = PanelContainer.new()
@@ -69,6 +71,25 @@ func setup(tabs: SessionTabs) -> void:
 	_accounts_box.add_theme_constant_override(&"separation", AgentTheme.px(4))
 	_accounts_card.add_child(_accounts_box)
 	refresh()
+
+
+## Un borde punteado alrededor de `control`, con las esquinas en cuarto de círculo.
+static func draw_dashed_border(control: Control, color: Color) -> void:
+	var radius := float(AgentTheme.px(10))
+	var dash := float(AgentTheme.px(5))
+	var inset := 0.5
+	var r := Rect2(Vector2.ONE * inset, control.size - Vector2.ONE * inset * 2.0)
+	var width := float(maxi(1, AgentTheme.px(1)))
+	for line: Array in [
+			[Vector2(r.position.x + radius, r.position.y), Vector2(r.end.x - radius, r.position.y)],
+			[Vector2(r.position.x + radius, r.end.y), Vector2(r.end.x - radius, r.end.y)],
+			[Vector2(r.position.x, r.position.y + radius), Vector2(r.position.x, r.end.y - radius)],
+			[Vector2(r.end.x, r.position.y + radius), Vector2(r.end.x, r.end.y - radius)]]:
+		control.draw_dashed_line(line[0], line[1], color, width, dash)
+	for corner: Array in [
+			[Vector2(r.position.x + radius, r.position.y + radius), PI], [Vector2(r.end.x - radius, r.position.y + radius), PI * 1.5],
+			[Vector2(r.end.x - radius, r.end.y - radius), 0.0], [Vector2(r.position.x + radius, r.end.y - radius), PI * 0.5]]:
+		control.draw_arc(corner[0], radius, corner[1], corner[1] + PI * 0.5, 8, color, width, true)
 
 
 ## Se arma de nuevo en el próximo frame: un turno cambia el estado varias veces seguidas.
