@@ -41,10 +41,10 @@ static func prepare(target: String = app_dir(), addon_dir: String = ProjectSetti
 		file.close()
 		changed = true
 	# El logo como ícono del proyecto (m21-15): el arranque y la barra de tareas antes del primer frame.
-	if FileAccess.get_file_as_string(target.path_join("icon.svg")) != AgentTheme.APP_ICON_SVG:
+	if FileAccess.get_file_as_string(target.path_join("icon.svg")) != AgentTheme.LOGO_SVG:
 		var icon := FileAccess.open(target.path_join("icon.svg"), FileAccess.WRITE)
 		if icon:
-			icon.store_string(AgentTheme.APP_ICON_SVG)
+			icon.store_string(AgentTheme.LOGO_SVG)
 			icon.close()
 			changed = true
 	var copied := sync_dir(addon_dir, target.path_join("addons/godot_agent"), "")

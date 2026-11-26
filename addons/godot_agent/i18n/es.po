@@ -6984,3 +6984,6 @@ msgstr "%d h"
 
 msgid "%s ago"
 msgstr "hace %s"
+
+msgid "Open another project in a new window"
+msgstr "Abrir otro proyecto en una ventana nueva"

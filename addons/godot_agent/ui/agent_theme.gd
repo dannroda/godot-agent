@@ -184,15 +184,31 @@ static func app_theme() -> Theme:
 	return theme
 
 
-## El logo de Godot Agent (m21-15): el hexágono con la cara, de trazo, en un cuadrado oscuro redondeado
-## para que se vea sobre cualquier barra de tareas. Ícono de la ventana y del proyecto de la app.
-const LOGO_PATHS := '<path d="M4 7l8-4 8 4v10l-8 4-8-4z"/><path d="M9 11h.01M15 11h.01M9 15c1.5 1 4.5 1 6 0"/>'
-const APP_ICON_SVG := '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><rect width="128" height="128" rx="28" fill="#1d2026"/><g transform="translate(16 16) scale(4)" fill="none" stroke="#f0a24a" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">%s</g></svg>' % LOGO_PATHS
+## El logo del proyecto (docs/images/logo.svg): el globo de chat ámbar con el prompt «›_». Entero, con
+## su fondo, es el ícono de la ventana y del proyecto de la app (m21-15); el glifo sin fondo, de 16 px
+## con el «›_» calado, va en la cabecera de la app y en el editor (AgentIcon).
+const LOGO_SVG := """<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+<rect x="4" y="4" width="120" height="120" rx="28" fill="#262b38"/>
+<path d="M38 22 H90 A18 18 0 0 1 108 40 V74 A18 18 0 0 1 90 92 H62 L40 108 L44 92 H38 A18 18 0 0 1 20 74 V40 A18 18 0 0 1 38 22Z" fill="#f0a85a"/>
+<path d="M42 44 L58 57 L42 70" fill="none" stroke="#262b38" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M68 70 H88" fill="none" stroke="#262b38" stroke-width="9" stroke-linecap="round"/>
+</svg>"""
+const LOGO_GLYPH_SVG := """<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+<path fill="#f0a85a" fill-rule="evenodd" d="M4 1.5H12A3 3 0 0 1 15 4.5V9A3 3 0 0 1 12 12H7.5L3.5 15L4.3 12H4A3 3 0 0 1 1 9V4.5A3 3 0 0 1 4 1.5Z M4.2 6.3L5.3 5L8.6 7.5L5.3 10L4.2 8.7L6 7.5Z M9 9H12V10.5H9Z"/>
+</svg>"""
 
 
 static func app_icon() -> Image:
 	var image := Image.new()
-	return image if image.load_svg_from_string(APP_ICON_SVG) == OK else null
+	return image if image.load_svg_from_string(LOGO_SVG) == OK else null
+
+
+## El glifo del logo a `side_px` de alto.
+static func logo_glyph(side_px: float = 22.0) -> Texture2D:
+	var image := Image.new()
+	if image.load_svg_from_string(LOGO_GLYPH_SVG, px(side_px) / 16.0) != OK:
+		return null
+	return ImageTexture.create_from_image(image)
 
 
 ## Un ícono de trazo dibujado de un SVG de 24×24 (`paths`: los `<path>`/`<circle>` de adentro), en

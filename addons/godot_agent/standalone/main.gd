@@ -67,7 +67,6 @@ var _bridge: EditorBridge
 var _sessions: Dictionary = {}  # id → {model, controller}
 ## La píldora de arriba (m21-01): si hay un editor abierto en la carpeta, y con él las tools godot.*.
 ## Los íconos de la cabecera (m21-08), de trazo, 24×24.
-const LOGO_ICON := AgentTheme.LOGO_PATHS
 const FOLDER_ICON := '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'
 const HISTORY_ICON := '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>'
 const SETTINGS_ICON := '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15.1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.9-1.2V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
@@ -169,7 +168,7 @@ func _build_header(root: String) -> Control:
 	row.add_theme_constant_override(&"separation", AgentTheme.px(12))
 	bar.add_child(row)
 	var logo := TextureRect.new()
-	logo.texture = AgentTheme.stroke_icon(LOGO_ICON, _settings.accent_color(), 22.0)
+	logo.texture = AgentTheme.logo_glyph(22.0)
 	logo.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
 	row.add_child(logo)
 	var app_name := Label.new()
@@ -177,17 +176,25 @@ func _build_header(root: String) -> Control:
 	app_name.add_theme_font_size_override(&"font_size", AgentTheme.px(16))
 	row.add_child(app_name)
 	# El proyecto en una caja, con la carpeta en mono (m21-16).
-	var project_box := PanelContainer.new()
-	var project_style := AgentTheme.panel(AgentTheme.APP_SURFACE, AgentTheme.APP_BORDER, 8.0, 6.0)
-	project_style.content_margin_left = AgentTheme.px(10)
-	project_style.content_margin_right = AgentTheme.px(12)
-	project_box.add_theme_stylebox_override(&"panel", project_style)
+	# Un botón (m21-21): «▾» abre otra carpeta en una ventana nueva; esta sigue con sus sesiones.
+	var project_box := Button.new()
+	project_box.name = "ProjectButton"
 	project_box.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	project_box.tooltip_text = root
+	project_box.tooltip_text = "%s\n%s" % [root, I18n.t("Open another project in a new window")]
+	project_box.pressed.connect(_pick_other_project)
 	row.add_child(project_box)
+	var project_margin := MarginContainer.new()
+	project_margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	project_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	project_margin.add_theme_constant_override(&"margin_left", AgentTheme.px(10))
+	project_margin.add_theme_constant_override(&"margin_right", AgentTheme.px(10))
+	project_box.add_child(project_margin)
 	var project_row := HBoxContainer.new()
+	project_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	project_row.add_theme_constant_override(&"separation", AgentTheme.px(8))
-	project_box.add_child(project_row)
+	project_margin.add_child(project_row)
+	# Un botón no cuenta el ancho de sus hijos: toma el de su contenido.
+	project_margin.minimum_size_changed.connect(func() -> void: project_box.custom_minimum_size = project_margin.get_combined_minimum_size())
 	var folder := TextureRect.new()
 	folder.texture = AgentTheme.stroke_icon(FOLDER_ICON, AgentTheme.MUTED, 16.0)
 	folder.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
@@ -206,6 +213,11 @@ func _build_header(root: String) -> Control:
 	path.add_theme_font_override(&"font", AgentTheme.mono_font())
 	path.add_theme_font_size_override(&"font_size", AgentTheme.px(13))
 	project_row.add_child(path)
+	var chevron := Label.new()
+	chevron.text = "▾"
+	chevron.modulate = Color(1, 1, 1, 0.6)
+	chevron.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	project_row.add_child(chevron)
 	_editor_pill = PanelContainer.new()
 	var pill_row := HBoxContainer.new()
 	pill_row.add_theme_constant_override(&"separation", AgentTheme.px(6))
@@ -242,6 +254,33 @@ func _build_header(root: String) -> Control:
 	timer.autostart = true
 	refresh_editor_status.call_deferred()
 	return bar
+
+
+## Elegir otra carpeta de proyecto y abrir la app sobre ella en otra ventana (m21-21).
+func _pick_other_project() -> void:
+	var dialog := AgentTheme.file_dialog()
+	dialog.set(&"file_mode", FileDialog.FILE_MODE_OPEN_DIR)
+	dialog.set(&"access", FileDialog.ACCESS_FILESYSTEM)
+	dialog.set(&"current_dir", EditorContext.project_path().get_base_dir())
+	dialog.title = I18n.t("Open another project in a new window")
+	dialog.connect(&"dir_selected", func(dir: String) -> void:
+		open_project_window(dir)
+		dialog.queue_free())
+	dialog.canceled.connect(dialog.queue_free)
+	add_child(dialog)
+	dialog.popup_centered_ratio(0.6)
+
+
+## Otra ventana de la app sobre `dir`. Con el editor de Godot hace falta --path a este proyecto; un
+## ejecutable exportado lo trae adentro.
+func open_project_window(dir: String) -> int:
+	var args := PackedStringArray() if OS.has_feature("template") else PackedStringArray(["--path", ProjectSettings.globalize_path("res://"), scene_file_path])
+	args.append_array(project_window_args(dir))
+	return OS.create_process(OS.get_executable_path(), args)
+
+
+static func project_window_args(dir: String) -> PackedStringArray:
+	return PackedStringArray(["--", "--project=" + dir.trim_suffix("/")])
 
 
 ## Mira si hay un editor abierto en la carpeta y pinta la píldora. Las sesiones toman el MCP al

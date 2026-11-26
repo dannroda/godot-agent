@@ -50,7 +50,7 @@ func test_launcher_keeps_its_copy_in_sync() -> void:
 	assert_true(FileAccess.file_exists(target.path_join("addons/godot_agent/standalone/main.gd")), "el addon")
 	assert_true(FileAccess.get_file_as_string(target.path_join("project.godot")).contains("standalone/main.tscn"), "con la app como escena principal")
 	assert_false(FileAccess.get_file_as_string(target.path_join("project.godot")).contains("autoload"), "y sin autoloads")
-	assert_true(FileAccess.get_file_as_string(target.path_join("project.godot")).contains("res://icon.svg") and FileAccess.file_exists(target.path_join("icon.svg")), "con el logo como ícono (m21-15)")
+	assert_true(FileAccess.get_file_as_string(target.path_join("project.godot")).contains("res://icon.svg") and FileAccess.get_file_as_string(target.path_join("icon.svg")).contains("#f0a85a"), "con el logo del proyecto como ícono (m21-15)")
 	assert_false(FileAccess.file_exists(target.path_join("addons/godot_agent/config/project_config.tres")), "sin el config del usuario")
 	assert_false(AppLauncher.prepare(target).changed, "la segunda, nada que copiar")
 	FileAccess.open(target.path_join("addons/godot_agent/stale.gd"), FileAccess.WRITE).store_string("class_name Old\n")
@@ -62,3 +62,9 @@ func test_launcher_keeps_its_copy_in_sync() -> void:
 
 func _clean() -> void:
 	AppLauncher.remove_tree(ProjectSettings.globalize_path(TMP))
+
+
+## m21-21: otra carpeta se abre en otra ventana de la app, con --project.
+func test_other_project_window_args() -> void:
+	var Main := load("res://addons/godot_agent/standalone/main.gd")
+	assert_eq(Main.project_window_args("/juegos/dos/"), PackedStringArray(["--", "--project=/juegos/dos"]), "la carpeta, sin barra final")
