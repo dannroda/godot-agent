@@ -6993,3 +6993,6 @@ msgstr "Contexto %d %%"
 
 msgid "turn %d"
 msgstr "turno %d"
+
+msgid "Search a setting…"
+msgstr "Buscar un ajuste…"

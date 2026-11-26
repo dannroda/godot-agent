@@ -90,6 +90,7 @@ var _pages: Array[Control] = []
 ## Lo que tenía cada sección al abrir (m12-26): la que cambió lleva «•» en la lista de la izquierda.
 var _baseline: PackedStringArray = []
 var _dirty_timer: Timer
+var _search: LineEdit
 var _dots: Array[Texture2D] = []
 ## Al pie, junto a Guardar (m21-17): qué secciones tienen cambios sin guardar.
 var _changes_label: Label
@@ -180,6 +181,14 @@ func _build() -> void:
 	# Se arma suelto y se cuelga al final: armado dentro del árbol, cada nodo nuevo propagaba el tema
 	# y rehacía el layout (crear el diálogo tardaba más de medio segundo).
 	var root := VBoxContainer.new()
+	# Buscar un ajuste (m21-23): deja a la vista las filas que coinciden y las secciones donde están.
+	_search = LineEdit.new()
+	_search.name = "SettingsSearch"
+	_search.placeholder_text = I18n.t("Search a setting…")
+	_search.clear_button_enabled = true
+	_search.custom_minimum_size.y = AgentTheme.px(34)
+	_search.text_changed.connect(filter_settings)
+	root.add_child(_search)
 	var split := HBoxContainer.new()
 	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	split.add_theme_constant_override(&"separation", AgentTheme.px(12))
@@ -315,6 +324,88 @@ func _refresh_dirty() -> void:
 			dirty.append(I18n.t(SECTION_LABELS[i]))
 	if _changes_label:
 		_changes_label.text = "" if dirty.is_empty() else (I18n.t("Unsaved changes: %s") % ", ".join(dirty))
+
+
+## Deja a la vista lo que coincide con `query` (sin distinguir mayúsculas): las filas, su tarjeta y su
+## título; las secciones sin nada quedan apagadas y se pasa a la primera que tiene. Vacío, todo.
+## Devuelve cuántas filas coinciden.
+func filter_settings(query: String) -> int:
+	var needle := query.strip_edges().to_lower()
+	var total := 0
+	var first := -1
+	for i in _pages.size():
+		var page := (_pages[i] as ScrollContainer).get_child(0) as VBoxContainer
+		var found := _filter_box(page, needle)
+		_nav.set_item_disabled(i, not needle.is_empty() and found == 0)
+		if found > 0 and first < 0:
+			first = i
+		total += found
+	if not needle.is_empty() and first >= 0 and _nav.is_item_disabled(_nav.get_selected_items()[0] if _nav.is_anything_selected() else 0):
+		_show_section(first)
+	return total
+
+
+## Filtra los hijos de `box`: una tarjeta se filtra por dentro; un título queda si su tarjeta quedó.
+## Solo oculta (y lo marca): lo que la lógica de cada sección tenía oculto sigue así, y al vaciar la
+## búsqueda vuelve lo que ocultó la búsqueda.
+func _filter_box(box: Container, needle: String) -> int:
+	var found := 0
+	var title: Control = null
+	for child: Node in box.get_children():
+		if not child is Control:
+			continue
+		var control := child as Control
+		var matches := 0
+		if control.has_meta(&"settings_title"):
+			title = control
+			_filter_hide(control, not needle.is_empty())
+			continue
+		if control.name.begins_with("Card") and control.get_child_count() > 0 and control.get_child(0) is Container:
+			matches = _filter_box(control.get_child(0) as Container, needle)
+		else:
+			matches = 1 if not needle.is_empty() and control.visible and _text_of(control).contains(needle) else 0
+			if control.has_meta(&"search_hidden") and not needle.is_empty():
+				matches = 1 if _text_of(control).contains(needle) else 0
+		_filter_hide(control, not needle.is_empty() and matches == 0)
+		if matches > 0 and title:
+			_filter_hide(title, false)
+		found += matches
+	return found
+
+
+func _filter_hide(control: Control, hide: bool) -> void:
+	if hide and (control.visible or control.has_meta(&"search_hidden")):
+		control.set_meta(&"search_hidden", true)
+		control.visible = false
+	elif not hide and control.has_meta(&"search_hidden"):
+		control.remove_meta(&"search_hidden")
+		control.visible = true
+
+
+## true si `item` y sus padres hasta `top` están visibles (un formulario oculto no cuenta).
+static func _shown_within(item: Node, top: Node) -> bool:
+	var at := item
+	while at != null:
+		if at is CanvasItem and not (at as CanvasItem).visible and not at.has_meta(&"search_hidden"):
+			return false
+		if at == top:
+			return true
+		at = at.get_parent()
+	return true
+
+
+## Todo el texto que se ve en `node` y adentro, en minúsculas.
+static func _text_of(node: Node) -> String:
+	var parts: PackedStringArray = []
+	for item: Node in [node] + node.find_children("*", "", true, false):
+		if not _shown_within(item, node):
+			continue
+		if item is Label or item is Button or item is LinkButton:
+			parts.append(str(item.get(&"text")))
+		elif item is OptionButton:
+			for i in (item as OptionButton).item_count:
+				parts.append((item as OptionButton).get_item_text(i))
+	return " ".join(parts).to_lower()
 
 
 ## El registro de ACP, encima de Ajustes (también para reinstalar un agente que falla, m12-13).

@@ -336,3 +336,22 @@ func test_mode_models() -> void:
 	var hints := box.get_children().filter(func(c: Node) -> bool: return c is Label and not c.is_queued_for_deletion())
 	assert_true(hints.size() == 1 and (hints[0] as Label).text.contains("composer"), "sin nada recordado, explica cómo se elige")
 	dialog.free()
+
+
+## m21-23: buscar un ajuste deja a la vista lo que coincide y apaga las secciones sin nada.
+func test_search() -> void:
+	var dialog := _dialog()
+	var nav: ItemList = dialog.get(&"_nav")
+	var update_check: CheckButton = dialog.get(&"_update_check")
+	var hidden_before: Array = dialog.find_children("*", "Control", true, false).filter(func(c: Control) -> bool: return not c.visible)
+	var found: int = dialog.filter_settings(update_check.text.substr(0, 12))
+	assert_true(found >= 1 and update_check.visible, "la fila que coincide queda")
+	assert_false((dialog.get(&"_timeout_spin") as Control).get_parent().visible, "una que no, se oculta")
+	assert_true(nav.is_item_disabled(SettingsDialog.SettingsSection.PERMISSIONS), "Permisos sin nada queda apagada")
+	assert_eq(dialog.filter_settings("zzzz-nada"), 0, "nada coincide")
+	dialog.filter_settings("")
+	assert_true((dialog.get(&"_timeout_spin") as Control).get_parent().visible, "vacío, vuelve todo")
+	assert_false(nav.is_item_disabled(SettingsDialog.SettingsSection.PERMISSIONS), "y las secciones")
+	var hidden_after: Array = dialog.find_children("*", "Control", true, false).filter(func(c: Control) -> bool: return not c.visible)
+	assert_eq(hidden_after.size(), hidden_before.size(), "lo que estaba oculto sigue igual")
+	dialog.free()
