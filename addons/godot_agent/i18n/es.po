@@ -6975,3 +6975,12 @@ msgstr "Edita y corre los comandos permitidos"
 
 msgid "Works until the goal is met"
 msgstr "Trabaja hasta cumplir el objetivo"
+
+msgid "%d min"
+msgstr "%d min"
+
+msgid "%d h"
+msgstr "%d h"
+
+msgid "%s ago"
+msgstr "hace %s"

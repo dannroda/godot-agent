@@ -23,6 +23,8 @@ var _list: VBoxContainer
 var _accounts_box: VBoxContainer
 var _accounts_card: PanelContainer
 var _count: Label
+## id → {status, at}: desde cuándo cada sesión está en su estado (m21-20).
+var _since: Dictionary = {}
 var _refresh_queued := false
 
 
@@ -66,6 +68,11 @@ func setup(tabs: SessionTabs) -> void:
 	_accounts_card = PanelContainer.new()
 	_accounts_card.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(1, 1, 1, 0.03), AgentTheme.APP_BORDER, 10.0, 12.0))
 	column.add_child(_accounts_card)
+	var tick := Timer.new()
+	tick.wait_time = 30.0
+	tick.autostart = true
+	tick.timeout.connect(refresh)
+	add_child(tick)
 	_accounts_box = VBoxContainer.new()
 	_accounts_box.name = "Accounts"
 	_accounts_box.add_theme_constant_override(&"separation", AgentTheme.px(4))
@@ -204,11 +211,27 @@ func _row(id: String) -> Control:
 	var agent := _label(str(info.get("agent", "")), 0.65)
 	agent.add_theme_font_size_override(&"font_size", AgentTheme.px(13))
 	lines.add_child(agent)
-	var status_label := _label(status.text, 1.0)
+	var elapsed := _elapsed(id, status.text)
+	var status_label := _label((status.text.trim_suffix("…") if not elapsed.is_empty() else status.text) + elapsed, 1.0)
 	status_label.add_theme_font_size_override(&"font_size", AgentTheme.px(13))
 	status_label.add_theme_color_override(&"font_color", status.color if status.color != IDLE_COLOR else Color(AgentTheme.font_color(), 0.65))
 	lines.add_child(status_label)
 	return row
+
+
+## Hace cuánto (m21-20): desde cuándo trabaja, o hace cuánto quedó así. Vacío en el primer minuto
+## y si nunca arrancó.
+func _elapsed(id: String, status_text: String) -> String:
+	var now := Time.get_unix_time_from_system()
+	var seen: Dictionary = _since.get(id, {})
+	if seen.get("status", "") != status_text:
+		seen = {"status": status_text, "at": now}
+		_since[id] = seen
+	var minutes := int((now - float(seen.at)) / 60.0)
+	if minutes < 1 or status_text == I18n.t("Not started"):
+		return ""
+	var amount := (I18n.t("%d min") % minutes) if minutes < 60 else (I18n.t("%d h") % (minutes / 60))
+	return " · " + (amount if status_text == I18n.t("Working…") else I18n.t("%s ago") % amount)
 
 
 ## El texto y el color del estado: te espera, trabajando, turno sin mirar, lista o sin empezar.
