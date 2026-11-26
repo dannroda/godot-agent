@@ -270,8 +270,11 @@ func _ready() -> void:
 	_mode_button.item_selected.connect(func(index: int) -> void:
 		_refresh_mode_strip()
 		mode_selected.emit(_mode_button.get_item_id(index)))
+	# El modo a la izquierda, junto a «+» (m21-10); Enviar queda solo a la derecha.
 	row.add_child(_build_mode_strip())
+	row.move_child(_mode_strip, _add_menu.get_index() + 1)
 	row.add_child(_mode_button)
+	row.move_child(_mode_button, _mode_strip.get_index() + 1)
 	set_modes(_modes)
 	if _current_mode >= 0:
 		set_current_mode(_current_mode)
