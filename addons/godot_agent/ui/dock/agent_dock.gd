@@ -1544,8 +1544,10 @@ func _refresh_empty_state() -> void:
 
 ## El texto del dock sin sesión (m12-59): qué hace el harness, el modo elegido con lo que permite, y
 ## cómo empezar.
-static func empty_hint(mode: String, mode_rules: String) -> String:
-	var lines: PackedStringArray = [I18n.t("The agent works on this project from the editor: it reads and changes scenes, scripts and settings, runs the game and looks at the errors.")]
+static func empty_hint(mode: String, mode_rules: String, in_editor := AgentTheme.has_editor()) -> String:
+	# Fuera del editor (la app aparte) las tools del editor están solo si hay uno abierto en la carpeta.
+	var lines: PackedStringArray = [I18n.t("The agent works on this project from the editor: it reads and changes scenes, scripts and settings, runs the game and looks at the errors.") if in_editor
+		else I18n.t("The agent works on the project folder: it reads and changes files with its own tools, and scenes, settings and the game with the editor's tools while the editor is open on it.")]
 	lines.append(I18n.t("Mode %s: %s") % [mode, mode_rules] if not mode_rules.is_empty() else I18n.t("Mode %s.") % mode)
 	lines.append(I18n.t("Write what you want in the box below to start, or press the button."))
 	return "\n\n".join(lines)

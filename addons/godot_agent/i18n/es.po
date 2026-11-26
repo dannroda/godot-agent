@@ -6663,6 +6663,9 @@ msgstr "Más: esta sesión (exportar, reiniciar, Remote Control, cuenta) y el ha
 msgid "The agent works on this project from the editor: it reads and changes scenes, scripts and settings, runs the game and looks at the errors."
 msgstr "El agente trabaja en este proyecto desde el editor: lee y cambia escenas, scripts y ajustes, corre el juego y mira los errores."
 
+msgid "The agent works on the project folder: it reads and changes files with its own tools, and scenes, settings and the game with the editor's tools while the editor is open on it."
+msgstr "El agente trabaja en la carpeta del proyecto: lee y cambia archivos con sus propias herramientas, y escenas, ajustes y el juego con las del editor mientras esté abierto en ella."
+
 msgid "Mode %s: %s"
 msgstr "Modo %s: %s"
 

@@ -5,10 +5,11 @@ const AgentDock := preload("res://addons/godot_agent/ui/dock/agent_dock.gd")
 
 
 func test_empty_hint() -> void:
-	var text := AgentDock.empty_hint("Build", "The agent edits scenes.")
+	var text := AgentDock.empty_hint("Build", "The agent edits scenes.", true)
 	var parts := text.split("\n\n")
 	assert_eq(parts.size(), 3, "tres partes · " + text)
 	assert_true(parts[0].contains("from the editor"), "qué hace el harness")
 	assert_eq(parts[1], "Mode Build: The agent edits scenes.", "el modo con lo que permite")
 	assert_true(parts[2].contains("box below"), "cómo empezar")
 	assert_eq(AgentDock.empty_hint("Level design (Build)", "").split("\n\n")[1], "Mode Level design (Build).", "modo sin descripción")
+	assert_true(AgentDock.empty_hint("Build", "", false).split("\n\n")[0].contains("while the editor is open"), "fuera del editor no promete sus tools")
