@@ -658,6 +658,16 @@ func _strip_usable() -> bool:
 
 ## Botones o desplegable según el nivel de compactación, y el modo elegido resaltado. Un modo que no
 ## está a la vista se muestra en «⋯» con su nombre, para que se vea cuál es.
+## Los modos del menú «Más», por nombre.
+func _other_mode_names() -> PackedStringArray:
+	var names: PackedStringArray = []
+	var menu := _mode_more.get_popup()
+	for i in menu.item_count:
+		if not menu.is_item_separator(i):
+			names.append(menu.get_item_text(i))
+	return names
+
+
 func _refresh_mode_strip() -> void:
 	if _mode_strip == null:
 		return
@@ -673,8 +683,9 @@ func _refresh_mode_strip() -> void:
 		_style_mode_segment(button, selected)
 	if _mode_more.visible:
 		var other := not in_strip and _mode_button.selected >= 0
-		_mode_more.text = (_mode_button.get_item_text(_mode_button.selected) + " ▾") if other else "⋯"
-		_mode_more.tooltip_text = ("%s: %s\n" % [I18n.t("Mode"), _mode_button.get_item_tooltip(_mode_button.selected)] if other else "") + I18n.t("More modes")
+		# «Más ▾» y no «⋯»: con los tres puntos no se entendía que ahí estaban los otros modos.
+		_mode_more.text = (_mode_button.get_item_text(_mode_button.selected) if other else I18n.t("More")) + " ▾"
+		_mode_more.tooltip_text = ("%s: %s\n" % [I18n.t("Mode"), _mode_button.get_item_tooltip(_mode_button.selected)] if other else "") + I18n.t("Other modes: %s") % ", ".join(_other_mode_names())
 		_style_mode_segment(_mode_more, other)
 
 
