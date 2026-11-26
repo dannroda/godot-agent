@@ -6911,3 +6911,6 @@ msgstr "Archivo borrado"
 
 msgid "Modified file"
 msgstr "Archivo cambiado"
+
+msgid "Accounts"
+msgstr "Cuentas"

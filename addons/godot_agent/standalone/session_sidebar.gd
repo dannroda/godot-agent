@@ -15,9 +15,12 @@ const IDLE_COLOR := Color("#8a93a0")
 
 ## `(id) -> {agent, mode}`: lo que la barra no sabe de la sesión (perfil del agente y nombre del modo).
 var describe: Callable
+## `() -> Array`: las cuentas con cuota anotada, `{label, used (0..1, -1 sin dato), limited, text}`.
+var accounts: Callable
 
 var _tabs: SessionTabs
 var _list: VBoxContainer
+var _accounts_box: VBoxContainer
 var _refresh_queued := false
 
 
@@ -47,6 +50,10 @@ func setup(tabs: SessionTabs) -> void:
 	add.custom_minimum_size.y = AgentTheme.px(36)
 	add.pressed.connect(func() -> void: new_requested.emit())
 	column.add_child(add)
+	_accounts_box = VBoxContainer.new()
+	_accounts_box.name = "Accounts"
+	_accounts_box.add_theme_constant_override(&"separation", AgentTheme.px(4))
+	column.add_child(_accounts_box)
 	refresh()
 
 
@@ -65,6 +72,39 @@ func _rebuild() -> void:
 		child.queue_free()
 	for id: String in _tabs.ids():
 		_list.add_child(_row(id))
+	_fill_accounts()
+
+
+## La cuota de cada cuenta que se usó (m21-04): la última anotada, compartida por todas las sesiones.
+func _fill_accounts() -> void:
+	for child: Node in _accounts_box.get_children():
+		_accounts_box.remove_child(child)
+		child.queue_free()
+	var known: Array = accounts.call() if accounts.is_valid() else []
+	_accounts_box.visible = not known.is_empty()
+	if known.is_empty():
+		return
+	_accounts_box.add_child(HSeparator.new())
+	var title := _label(I18n.t("Accounts"), 0.6)
+	_accounts_box.add_child(title)
+	for account: Dictionary in known:
+		var line := HBoxContainer.new()
+		line.add_child(_label(str(account.label), 1.0, true))
+		var amount := _label(str(account.text), 0.65)
+		amount.clip_text = false
+		amount.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING  # cortando, no pide ancho y no se ve
+		line.add_child(amount)
+		_accounts_box.add_child(line)
+		var bar := ProgressBar.new()
+		bar.show_percentage = false
+		bar.custom_minimum_size.y = AgentTheme.px(4)
+		bar.max_value = 1.0
+		bar.value = 1.0 if account.limited else maxf(0.0, float(account.used))
+		var fill := _tabs.accent if account.limited or float(account.used) >= 0.8 else SessionTabs.BUSY_COLOR
+		bar.add_theme_stylebox_override(&"background", AgentTheme.panel(Color(1, 1, 1, 0.1), Color.TRANSPARENT, 2.0, 0.0))
+		bar.add_theme_stylebox_override(&"fill", AgentTheme.panel(fill, Color.TRANSPARENT, 2.0, 0.0))
+		bar.tooltip_text = "%s: %s" % [account.label, account.text]
+		_accounts_box.add_child(bar)
 
 
 func _row(id: String) -> Control:

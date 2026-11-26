@@ -36,6 +36,7 @@ const StdioShimInstaller := preload("../mcp/stdio_shim_installer.gd")
 const EditorBridge := preload("editor_bridge.gd")
 const AgentTheme := preload("../ui/agent_theme.gd")
 const SessionSidebar := preload("session_sidebar.gd")
+const AccountChoices := preload("../session/agents/account_choices.gd")
 const TurnPanel := preload("turn_panel.gd")
 const ProjectModes := preload("../core/project_modes.gd")
 
@@ -104,6 +105,7 @@ func _ready() -> void:
 	_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_sidebar = SessionSidebar.new()
 	_sidebar.describe = _describe_session
+	_sidebar.accounts = _account_usage
 	_sidebar.setup(_tabs)
 	_sidebar.new_requested.connect(open_tab)
 	_sidebar.close_requested.connect(close_tab)
@@ -219,6 +221,7 @@ func open_tab() -> String:
 	dock.action_forwarded.connect(_on_dock_action)
 	dock.turn_changes_requested.connect(func() -> void: _turn_counter.open(id))
 	model.state_changed.connect(func(state: SessionModel.SessionState) -> void: _turn_counter.on_state(id, state))
+	controller.quota.changed.connect(func() -> void: _sidebar.refresh())
 	controller.turn_changes_reported.connect(func(_data: Dictionary) -> void: _turn_panel.refresh())
 	for changed: Signal in [model.harness_mode_changed, model.project_mode_changed, model.account_changed]:
 		changed.connect(func(_value: Variant = null) -> void: _sidebar.refresh())
@@ -244,6 +247,20 @@ func _describe_session(id: String) -> Dictionary:
 	var profile: Object = controller.profile() if controller.profile() else (dock.call(&"selected_profile") if dock else null)
 	var mode := str(model.project_mode.get("name", "")) if not model.project_mode.is_empty() else I18n.t(SessionModel.HARNESS_MODE_LABELS.get(model.harness_mode, ""))
 	return {"agent": profile.call(&"label") if profile else I18n.t("No agent"), "mode": mode}
+
+
+## Las cuentas con cuota anotada (todas las sesiones anotan en el mismo archivo), para la barra lateral.
+func _account_usage() -> Array:
+	var book := AccountQuotaBook.new()
+	var result: Array = []
+	for choice: Dictionary in AccountChoices.list(_settings, null, book):
+		var seen := book.lookup(str(choice.profile_id), str(choice.account_dir))
+		var text := str(choice.quota)
+		if seen.is_empty() or text.is_empty():
+			continue
+		var name := str(choice.name) if str(choice.account).is_empty() else "%s · %s" % [choice.name, choice.account]
+		result.append({"label": name, "used": float(seen.get("used", -1.0)), "limited": bool(seen.get("limited", false)), "text": text})
+	return result
 
 
 func close_tab(id: String) -> void:

@@ -13,6 +13,7 @@ const HarnessSettings := preload("res://addons/godot_agent/core/harness_settings
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
 const McpPublication := preload("res://addons/godot_agent/mcp/mcp_publication.gd")
+const AccountQuotaBook := preload("res://addons/godot_agent/core/account_quota_book.gd")
 const McpServer := preload("res://addons/godot_agent/mcp/mcp_server.gd")
 const ToolRegistry := preload("res://addons/godot_agent/mcp/tool_registry.gd")
 const McpTool := preload("res://addons/godot_agent/mcp/mcp_tool.gd")
@@ -102,7 +103,27 @@ func _run() -> void:
 	await process_frame
 	var rows: Array = app._sidebar._list.get_children()
 	_check(rows.size() == 2 and not (app._tabs.get(&"_row") as Control).visible, "las dos en la barra lateral, sin la fila de pestañas (m21-04)")
-	(rows[0] as Button).pressed.emit()
+	var saved_profiles: Array[AgentProfile] = app._settings.profiles()
+	var one: Array[AgentProfile] = [AgentProfile.from_dict({"id": "quota_check", "display_name": "Quota", "command": "true"})]
+	app._settings.save_profiles(one)
+	var profiles: Array = app._settings.profiles()
+	if not profiles.is_empty():
+		var book := AccountQuotaBook.new()
+		var saved := FileAccess.get_file_as_string(book.path) if FileAccess.file_exists(book.path) else ""
+		DirAccess.make_dir_recursive_absolute(book.path.get_base_dir())
+		FileAccess.open(book.path, FileAccess.WRITE).store_string(JSON.stringify({AccountQuotaBook.key(profiles[0].id, ""): {"used": 0.62, "limited": false, "until": 0, "at": int(Time.get_unix_time_from_system())}}))
+		app._sidebar.refresh()
+		await process_frame
+		var box: Control = app._sidebar._accounts_box
+		_check(box.visible and box.find_children("*", "ProgressBar", true, false).size() == 1 and box.find_children("*", "Label", true, false).any(func(label: Label) -> bool: return label.text.contains("62")), "abajo, la cuota anotada de la cuenta (62 %)")
+		if saved.is_empty():
+			DirAccess.remove_absolute(book.path)
+		else:
+			FileAccess.open(book.path, FileAccess.WRITE).store_string(saved)
+	else:
+		_check(false, "hay perfiles para probar la cuota de las cuentas")
+	app._settings.save_profiles(saved_profiles)
+	(app._sidebar._list.get_child(0) as Button).pressed.emit()  # la lista se armó de nuevo
 	await process_frame
 	_check(app._tabs.active_id() == "s1" and (app._sidebar._list.get_child(0) as Button).button_pressed, "tocar una fila la elige")
 	app._tabs.select(second)
