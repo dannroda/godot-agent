@@ -666,6 +666,16 @@ func _build_header() -> void:
 	_more_button.about_to_popup.connect(_fill_more_menu)
 	_more_button.get_popup().id_pressed.connect(_on_more_selected)
 	_settings_button.add_sibling(_more_button)
+	# A la vista, antes de «⋯» (m21-13): en el editor, abrir las sesiones en una ventana aparte.
+	if AgentTheme.has_editor():
+		var separate := Button.new()
+		separate.name = "SeparateWindowButton"
+		separate.flat = true
+		separate.icon = AgentTheme.icon(&"ExternalLink")
+		separate.tooltip_text = I18n.t("Open in a separate window")
+		separate.pressed.connect(open_separate_window)
+		_more_button.add_sibling(separate)
+		_more_button.get_parent().move_child(separate, _more_button.get_index())
 
 
 ## El modo va en un dropdown de la fila del composer, al lado del modelo (m7-32): los cinco botones
