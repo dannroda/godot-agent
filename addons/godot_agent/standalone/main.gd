@@ -34,11 +34,16 @@ const McpServer := preload("../mcp/mcp_server.gd")
 const McpPublication := preload("../mcp/mcp_publication.gd")
 const StdioShimInstaller := preload("../mcp/stdio_shim_installer.gd")
 const EditorBridge := preload("editor_bridge.gd")
+const AgentTheme := preload("../ui/agent_theme.gd")
 const ProjectModes := preload("../core/project_modes.gd")
 
 ## Al lado de los datos del editor, compartido por todos los proyectos que se abran así; los perfiles
 ## del editor viven en EditorSettings y no se comparten.
 const SETTINGS_FILE := "godot_agent/standalone.cfg"
+## Cada cuánto se mira si el editor sigue (o ya está) abierto: un connect a 127.0.0.1, que contesta enseguida.
+const EDITOR_CHECK_S := 3.0
+const EDITOR_ON_COLOR := Color("#4fc1a6")
+const EDITOR_OFF_COLOR := Color("#8a93a0")
 const KEY_LAST_PROJECT := "standalone_last_project"
 
 var _settings: HarnessSettings
@@ -53,6 +58,11 @@ var _turn_counter: TurnCounter
 var _mcp: McpServer
 var _bridge: EditorBridge
 var _sessions: Dictionary = {}  # id → {model, controller}
+## La píldora de arriba (m21-01): si hay un editor abierto en la carpeta, y con él las tools godot.*.
+var _editor_pill: PanelContainer
+var _editor_dot: TextureRect
+var _editor_label: Label
+var _editor_open := false
 var _serial := 0
 
 
@@ -75,13 +85,73 @@ func _ready() -> void:
 	_snapshots.setup()
 	_build_turn_changes()
 	_start_mcp(root)
+	var column := VBoxContainer.new()
+	column.set_anchors_preset(Control.PRESET_FULL_RECT)
+	column.add_theme_constant_override(&"separation", 0)
+	add_child(column)
+	column.add_child(_build_header(root))
 	_tabs = SessionTabs.new()
-	_tabs.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_tabs.new_session_requested.connect(func(_in_copy: bool) -> void: open_tab())
 	_tabs.close_requested.connect(close_tab)
 	_tabs.rename_requested.connect(_rename)
-	add_child(_tabs)
+	column.add_child(_tabs)
 	open_tab()
+
+
+## La barra de arriba (m21-01): el proyecto, su carpeta y si hay un editor abierto en ella.
+func _build_header(root: String) -> Control:
+	var bar := PanelContainer.new()
+	bar.add_theme_stylebox_override(&"panel", AgentTheme.panel(AgentTheme.dark_color(), Color.TRANSPARENT, 0.0, 6.0))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override(&"separation", AgentTheme.px(10))
+	bar.add_child(row)
+	var project := Label.new()
+	project.text = root.get_file()
+	project.add_theme_color_override(&"font_color", AgentTheme.font_color())
+	row.add_child(project)
+	var path := Label.new()
+	var home := OS.get_environment("HOME")
+	path.text = ("~" + root.trim_prefix(home)) if not home.is_empty() and root.begins_with(home) else root
+	path.tooltip_text = root
+	path.mouse_filter = Control.MOUSE_FILTER_PASS
+	path.modulate = Color(1, 1, 1, 0.6)
+	path.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	path.clip_text = true
+	path.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(path)
+	_editor_pill = PanelContainer.new()
+	var pill_row := HBoxContainer.new()
+	pill_row.add_theme_constant_override(&"separation", AgentTheme.px(6))
+	_editor_pill.add_child(pill_row)
+	_editor_dot = TextureRect.new()
+	_editor_dot.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	pill_row.add_child(_editor_dot)
+	_editor_label = Label.new()
+	pill_row.add_child(_editor_label)
+	row.add_child(_editor_pill)
+	var timer := Timer.new()
+	timer.wait_time = EDITOR_CHECK_S
+	timer.timeout.connect(refresh_editor_status)
+	bar.add_child(timer)
+	timer.autostart = true
+	refresh_editor_status.call_deferred()
+	return bar
+
+
+## Mira si hay un editor abierto en la carpeta y pinta la píldora. Las sesiones toman el MCP al
+## abrirse (_editor_mcp): el tooltip dice qué pasa con las que ya estaban.
+func refresh_editor_status() -> void:
+	var open := not McpPublication.read(EditorContext.project_path()).is_empty() and _mcp != null and _mcp.is_listening()
+	if open == _editor_open and not _editor_label.text.is_empty():
+		return
+	_editor_open = open
+	var color := EDITOR_ON_COLOR if open else EDITOR_OFF_COLOR
+	_editor_pill.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(color, 0.14), Color(color, 0.5), 10.0, 4.0))
+	_editor_dot.texture = AgentTheme.dot(color)
+	_editor_label.text = I18n.t("Editor open · godot.* tools on") if open else I18n.t("No editor open")
+	_editor_pill.tooltip_text = I18n.t("The Godot editor is open on this folder: new sessions use its godot.* tools, approved in each tab. Sessions opened before it don't have them: start a new one.") if open \
+		else I18n.t("No Godot editor is open on this folder: agents edit files with their own tools and check them with Godot headless. Open the editor on this folder and start a new session to use its godot.* tools.")
 
 
 ## La carpeta de `--project=<carpeta>`; si no, la última abierta si todavía existe; si no, res://.

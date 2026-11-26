@@ -43,6 +43,7 @@ func _run() -> void:
 	await process_frame
 	_check(EditorContext.project_path() == _project, "sin --project, la última carpeta abierta")
 	_check(app._tabs.ids() == PackedStringArray(["s1"]), "arranca con una pestaña")
+	_check(not app._editor_open and app._editor_pill.is_inside_tree(), "arriba, la píldora sin editor abierto")
 	app._open_settings()
 	await process_frame
 	_check(app._settings_dialog.visible, "los ajustes se abren")
@@ -58,6 +59,8 @@ func _run() -> void:
 	_check(not FileAccess.file_exists(scene) and not str(refused.error).contains("godot.") and str(refused.error).contains("headless"), "sin editor, una escena a mano se rechaza y el motivo manda a Godot headless")
 	controller._note_for_agent = ""
 	var editor := _fake_editor()  # como un editor abierto en la carpeta, con su MCP publicado
+	app.refresh_editor_status()
+	_check(app._editor_open and app._editor_label.text.contains("godot.*"), "la píldora de arriba dice que hay un editor abierto (m21-01)")
 	var servers: Array = app._editor_mcp("s1")
 	_check(servers.size() == 1 and str(servers[0]).contains(app._mcp.url()) and not str(servers[0]).contains(editor.token), "con el editor abierto, la sesión usa el MCP de la app, sin ver el token del editor")
 	_check(broker.editor_tools and controller._note_for_agent.contains("editor is open"), "y el agente sabe que tiene las tools godot.* del editor")
@@ -89,6 +92,8 @@ func _run() -> void:
 	reply = await _post(app._mcp.url(), app._mcp.session_token("s1"), {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "touch", "arguments": {"name": "z"}}})
 	_check(str(reply).contains("no longer open"), "con el editor cerrado, la tool lo dice")
 	editor.queue_free()
+	app.refresh_editor_status()
+	_check(not app._editor_open and not app._editor_label.text.contains("godot.*"), "y que ya no, al cerrarse")
 	McpPublication.remove(_project)
 	controller._note_for_agent = ""
 	var second: String = app.open_tab()

@@ -6860,3 +6860,15 @@ msgstr "gh no pudo leer el issue: %s"
 
 msgid "Open"
 msgstr "Abrir"
+
+msgid "Editor open · godot.* tools on"
+msgstr "Editor abierto · tools godot.* activas"
+
+msgid "No editor open"
+msgstr "Sin editor abierto"
+
+msgid "The Godot editor is open on this folder: new sessions use its godot.* tools, approved in each tab. Sessions opened before it don't have them: start a new one."
+msgstr "El editor de Godot está abierto en esta carpeta: las sesiones nuevas usan sus tools godot.*, con la aprobación de cada pestaña. Las que se abrieron antes no las tienen: empezá una nueva."
+
+msgid "No Godot editor is open on this folder: agents edit files with their own tools and check them with Godot headless. Open the editor on this folder and start a new session to use its godot.* tools."
+msgstr "No hay un editor de Godot abierto en esta carpeta: los agentes editan los archivos con sus propias tools y los comprueban con Godot headless. Abrí el editor en esta carpeta y empezá una sesión nueva para usar sus tools godot.*."
