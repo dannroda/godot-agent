@@ -6938,3 +6938,12 @@ msgstr "Esta ventana se abrió dentro del proyecto del juego, así que sus autol
 
 msgid "Settings"
 msgstr "Ajustes"
+
+msgid "First request"
+msgstr "Primer pedido"
+
+msgid "Add %s"
+msgstr "Agregar %s"
+
+msgid "The first time, its program is downloaded: it can take a minute. Then you sign in with the account it asks for, from the browser."
+msgstr "La primera vez se descarga su programa: puede tardar un minuto. Después iniciás sesión con la cuenta que pida, desde el navegador."
