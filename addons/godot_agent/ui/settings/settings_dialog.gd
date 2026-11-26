@@ -54,7 +54,9 @@ const DECISION_LABELS: Dictionary = {
 	PermissionPolicy.DENY: "Deny",  # i18n
 }
 ## Celdas de la matriz (m12-22): un ícono y un color por decisión.
-const DECISION_MARKS: Dictionary = {PermissionPolicy.ALLOW: "✓", PermissionPolicy.ASK: "?", PermissionPolicy.DENY: "✕"}
+## El color de cada decisión: un punto al lado del texto. No «✓»/«✕»: no están en la fuente y cada
+## celda buscaba otra en el sistema (con 60 celdas, abrir Ajustes tardaba más de medio segundo).
+const DECISION_COLORS: Dictionary = {PermissionPolicy.ALLOW: AgentTheme.ADDED, PermissionPolicy.ASK: AgentTheme.WARNING, PermissionPolicy.DENY: AgentTheme.ERROR}
 const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO, SessionModel.HarnessMode.ONESHOT]
 const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "subagent_limits", "permission_timeout_s", "auto_shell_rules", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "verify_after_turn", "path_rules", "verify_plan_criteria", "verify_plan_criteria_max", "turn_checks", "recipes_dir", "modes_dir", "hooks", "turn_snapshots", "github_pull_requests", "extra_fs_roots", "mcp_servers", "project_tools_dir", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
 const DOCK_SLOT_LABELS: PackedStringArray = [
@@ -172,8 +174,9 @@ func _build() -> void:
 	dialog_hide_on_ok = false
 	min_size = Vector2i(AgentTheme.px(820), AgentTheme.px(560))
 	confirmed.connect(_on_save)
+	# Se arma suelto y se cuelga al final: armado dentro del árbol, cada nodo nuevo propagaba el tema
+	# y rehacía el layout (crear el diálogo tardaba más de medio segundo).
 	var root := VBoxContainer.new()
-	add_child(root)
 	var split := HBoxContainer.new()
 	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	split.add_theme_constant_override(&"separation", AgentTheme.px(12))
@@ -201,6 +204,7 @@ func _build() -> void:
 	_error_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_error_label.add_theme_color_override(&"font_color", AgentTheme.ERROR)
 	root.add_child(_error_label)
+	add_child(root)
 	_group_buttons()
 	_dirty_timer = Timer.new()
 	_dirty_timer.wait_time = 0.3
@@ -989,26 +993,44 @@ func _rebuild_mcp_matrix(overrides: Dictionary) -> void:
 
 
 ## Una celda: «✓ Permitir», «? Preguntar», «✕ Denegar», con su color y resaltada si no es el default.
+var _decision_dots: Dictionary = {}
+
+
+func _decision_dot(decision: String) -> Texture2D:
+	if not _decision_dots.has(decision):
+		_decision_dots[decision] = AgentTheme.dot(DECISION_COLORS[decision])
+	return _decision_dots[decision]
+
+
 func _matrix_cell(group: String, mode: SessionModel.HarnessMode) -> OptionButton:
 	var option := OptionButton.new()
 	for decision: String in DECISIONS:
-		option.add_item("%s %s" % [DECISION_MARKS[decision], I18n.t(DECISION_LABELS[decision])])
+		option.add_icon_item(_decision_dot(decision), I18n.t(DECISION_LABELS[decision]))
 	option.item_selected.connect(func(_index: int) -> void: _style_matrix_cell(option, group, mode))
 	return option
 
 
 func _style_matrix_cell(option: OptionButton, group: String, mode: SessionModel.HarnessMode) -> void:
 	var decision: String = DECISIONS[maxi(option.selected, 0)]
-	var color: Color = {PermissionPolicy.ALLOW: AgentTheme.ADDED, PermissionPolicy.ASK: AgentTheme.WARNING, PermissionPolicy.DENY: AgentTheme.ERROR}[decision]
+	var default_value := PermissionPolicy.new({}).matrix_value(group, mode)
+	var differs := decision != default_value
+	var accent := _accent_picker.color if _accent_picker else Color.WHITE
+	# Cada override de tema en un OptionButton cuesta ~2 ms: con 60 celdas, abrir Ajustes tardaba más
+	# de medio segundo. Solo se restiliza la que cambió, y en bloque.
+	var key := [decision, differs, accent]
+	if option.get_meta(&"styled", []) == key:
+		return
+	option.set_meta(&"styled", key)
+	var color: Color = DECISION_COLORS[decision]
+	option.begin_bulk_theme_override()
 	for item: StringName in [&"font_color", &"font_hover_color", &"font_pressed_color", &"font_focus_color"]:
 		option.add_theme_color_override(item, color)
-	var differs := decision != PermissionPolicy.new({}).matrix_value(group, mode)
-	option.tooltip_text = I18n.t("Changed: the default is %s") % I18n.t(DECISION_LABELS[PermissionPolicy.new({}).matrix_value(group, mode)]) if differs else ""
 	if differs:
-		var box := AgentTheme.panel(Color(color, 0.12), Color(_accent_picker.color if _accent_picker else color, 0.9), 4, 4)
-		option.add_theme_stylebox_override(&"normal", box)
+		option.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color(color, 0.12), Color(accent, 0.9), 4, 4))
 	else:
 		option.remove_theme_stylebox_override(&"normal")
+	option.end_bulk_theme_override()
+	option.tooltip_text = I18n.t("Changed: the default is %s") % I18n.t(DECISION_LABELS[default_value]) if differs else ""
 
 
 func _reset_matrix_column(mode: SessionModel.HarnessMode) -> void:

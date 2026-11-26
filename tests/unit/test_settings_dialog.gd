@@ -275,7 +275,7 @@ func test_matrix_cells_and_column_reset() -> void:
 	var same: OptionButton = matrix[PermissionPolicy.GROUP_READ][SessionModel.HarnessMode.BUILD]
 	assert_true(changed.has_theme_stylebox_override(&"normal") and not changed.tooltip_text.is_empty(), "la cambiada se resalta y dice el default")
 	assert_false(same.has_theme_stylebox_override(&"normal"), "la de siempre, no")
-	assert_true(changed.get_item_text(changed.selected).begins_with("✓"), "con su ícono")
+	assert_true(changed.get_item_icon(changed.selected) != null, "con su punto de color")
 	dialog.call(&"_reset_matrix_column", SessionModel.HarnessMode.BUILD)
 	assert_true(dialog.matrix_overrides().is_empty(), "la columna vuelve a la spec")
 	assert_false(changed.has_theme_stylebox_override(&"normal"), "y deja de resaltarse")
