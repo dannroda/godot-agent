@@ -16,7 +16,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Changed
 
-- **Plan, Build and Auto as buttons.** The mode is chosen with three buttons next to Send instead of a dropdown; **⋯** has the other modes (Ask, Review, One-shot and the project's modes), and shows the one in use when it's one of those. In a narrow dock it goes back to the dropdown.
+- **Plan, Build and Auto as buttons.** The mode is chosen with three buttons at the left of the composer, next to **+** instead of a dropdown; **⋯** has the other modes (Ask, Review, One-shot and the project's modes), and shows the one in use when it's one of those. In a narrow dock it goes back to the dropdown.
+- **A clearer first run.** The first-run guide shows its three steps (agent, account, first request), lets you pick one of the suggested agents (the recommended one is picked already) and adds it with a single **Add <agent>** button, with a note that the first time its program is downloaded.
+- **The separate window follows its design.** It has a dark look of its own, **Godot Agent** and the project at the top with **Session history** and **Settings** at hand, the session's name above the chat, how many sessions are open and each one's mode in the sidebar, and **This turn** with a **live** badge, the file status in a badge, a lock on the files other sessions hold and **View all the changes of the turn** at the bottom. With no session, its text no longer says the agent works from the editor.
+- **Open in a separate window at hand.** The dock's top row has its icon before **⋯**.
 - **Undo turn only touches the turn's files.** It used to put the whole project back to before the turn, which with several tabs on the same folder also undid what the other tabs did afterwards. Now it reverts the files the turn changed, and the confirmation names those that changed again after the turn.
 
 ## [0.3.0] - 2026-11-24

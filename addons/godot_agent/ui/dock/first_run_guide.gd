@@ -13,8 +13,6 @@ const SuggestedAgents := preload("../../core/suggested_agents.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const I18n := preload("../../core/i18n.gd")
 
-const STEPS := ["Agent", "Account", "First request"]
-
 var _accent: Color
 var _group := ButtonGroup.new()
 var _cards: Array[Button] = []
@@ -79,7 +77,8 @@ func _steps() -> Control:
 	var row := HBoxContainer.new()
 	row.name = "Steps"
 	row.add_theme_constant_override(&"separation", AgentTheme.px(6))
-	for i in STEPS.size():
+	var steps := [I18n.t("Agent"), I18n.t("Account"), I18n.t("First request")]
+	for i in steps.size():
 		var step := VBoxContainer.new()
 		step.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		step.add_theme_constant_override(&"separation", AgentTheme.px(4))
@@ -88,7 +87,7 @@ func _steps() -> Control:
 		bar.add_theme_stylebox_override(&"panel", AgentTheme.panel(_accent if i == 0 else Color(1, 1, 1, 0.14), Color.TRANSPARENT, 2, 0))
 		step.add_child(bar)
 		var label := Label.new()
-		label.text = "%d · %s" % [i + 1, I18n.t(STEPS[i])]
+		label.text = "%d · %s" % [i + 1, steps[i]]
 		label.add_theme_font_size_override(&"font_size", AgentTheme.px(12))
 		if i > 0:
 			label.add_theme_color_override(&"font_color", AgentTheme.MUTED)

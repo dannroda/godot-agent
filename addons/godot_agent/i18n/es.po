@@ -3822,14 +3822,8 @@ msgstr "Elegí con qué agente trabajar"
 msgid "The agent sees and changes the project with the editor tools. You can add others later in Settings → Agents."
 msgstr "El agente ve y cambia el proyecto con las herramientas del editor. Podés sumar otros después en Ajustes → Agentes."
 
-msgid "Add an agent: the session starts on its own (the first time it is downloaded, which can take a minute)."
-msgstr "Agregás un agente: la sesión arranca sola (la primera vez se descarga, puede tardar un minuto)."
 
-msgid "Sign in with the account it asks for, from the browser."
-msgstr "Iniciás sesión con la cuenta que pida, desde el navegador."
 
-msgid "Ask it something, with @ to name nodes and files."
-msgstr "Le pedís algo, con @ para nombrar nodos y archivos."
 
 msgid "Playtest: passed"
 msgstr "Playtest: pasó"
