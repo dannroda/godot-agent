@@ -6,6 +6,7 @@ extends RefCounted
 ## carpeta del juego le llega por --project (ProjectDirs.root lee de ahí lo del usuario).
 
 const AcpRegistry := preload("../core/acp_registry.gd")
+const AgentTheme := preload("../ui/agent_theme.gd")
 
 const DIR := "godot_agent/app"
 const ADDON := "res://addons/godot_agent"
@@ -16,6 +17,7 @@ const PROJECT := """config_version=5
 [application]
 
 config/name="Godot Agent"
+config/icon="res://icon.svg"
 run/main_scene="res://addons/godot_agent/standalone/main.tscn"
 config/features=PackedStringArray("%s")
 """
@@ -38,6 +40,13 @@ static func prepare(target: String = app_dir(), addon_dir: String = ProjectSetti
 		file.store_string(project)
 		file.close()
 		changed = true
+	# El logo como ícono del proyecto (m21-15): el arranque y la barra de tareas antes del primer frame.
+	if FileAccess.get_file_as_string(target.path_join("icon.svg")) != AgentTheme.APP_ICON_SVG:
+		var icon := FileAccess.open(target.path_join("icon.svg"), FileAccess.WRITE)
+		if icon:
+			icon.store_string(AgentTheme.APP_ICON_SVG)
+			icon.close()
+			changed = true
 	var copied := sync_dir(addon_dir, target.path_join("addons/godot_agent"), "")
 	if copied < 0:
 		return {"error": ERR_CANT_CREATE, "changed": changed}

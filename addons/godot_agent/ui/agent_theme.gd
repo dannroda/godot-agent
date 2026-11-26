@@ -173,6 +173,17 @@ static func app_theme() -> Theme:
 	return theme
 
 
+## El logo de Godot Agent (m21-15): el hexágono con la cara, de trazo, en un cuadrado oscuro redondeado
+## para que se vea sobre cualquier barra de tareas. Ícono de la ventana y del proyecto de la app.
+const LOGO_PATHS := '<path d="M4 7l8-4 8 4v10l-8 4-8-4z"/><path d="M9 11h.01M15 11h.01M9 15c1.5 1 4.5 1 6 0"/>'
+const APP_ICON_SVG := '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><rect width="128" height="128" rx="28" fill="#1d2026"/><g transform="translate(16 16) scale(4)" fill="none" stroke="#f0a24a" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">%s</g></svg>' % LOGO_PATHS
+
+
+static func app_icon() -> Image:
+	var image := Image.new()
+	return image if image.load_svg_from_string(APP_ICON_SVG) == OK else null
+
+
 ## Un ícono de trazo dibujado de un SVG de 24×24 (`paths`: los `<path>`/`<circle>` de adentro), en
 ## `color`, a `side_px`. Fuera del editor no están sus íconos (m21-08).
 static func stroke_icon(paths: String, color: Color, side_px: float = 18.0) -> Texture2D:

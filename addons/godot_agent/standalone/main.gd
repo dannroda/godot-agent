@@ -67,7 +67,7 @@ var _bridge: EditorBridge
 var _sessions: Dictionary = {}  # id → {model, controller}
 ## La píldora de arriba (m21-01): si hay un editor abierto en la carpeta, y con él las tools godot.*.
 ## Los íconos de la cabecera (m21-08), de trazo, 24×24.
-const LOGO_ICON := '<path d="M4 7l8-4 8 4v10l-8 4-8-4z"/><path d="M9 11h.01M15 11h.01M9 15c1.5 1 4.5 1 6 0"/>'
+const LOGO_ICON := AgentTheme.LOGO_PATHS
 const FOLDER_ICON := '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'
 const HISTORY_ICON := '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>'
 const SETTINGS_ICON := '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15.1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.9-1.2V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
@@ -86,6 +86,9 @@ func _ready() -> void:
 	# Diálogos y menús en ventanas del sistema, como en el editor; un juego los embebe por defecto.
 	get_window().gui_embed_subwindows = false
 	theme = AgentTheme.app_theme()  # los colores del diseño (m21-07)
+	var icon := AgentTheme.app_icon()
+	if icon:
+		DisplayServer.set_icon(icon)  # el logo en la barra de título y de tareas (m21-15)
 	RenderingServer.set_default_clear_color(AgentTheme.APP_BASE)
 	_settings =HarnessSettings.new(null, settings_path())
 	I18n.setup(_settings.language(), "")

@@ -50,6 +50,7 @@ func test_launcher_keeps_its_copy_in_sync() -> void:
 	assert_true(FileAccess.file_exists(target.path_join("addons/godot_agent/standalone/main.gd")), "el addon")
 	assert_true(FileAccess.get_file_as_string(target.path_join("project.godot")).contains("standalone/main.tscn"), "con la app como escena principal")
 	assert_false(FileAccess.get_file_as_string(target.path_join("project.godot")).contains("autoload"), "y sin autoloads")
+	assert_true(FileAccess.get_file_as_string(target.path_join("project.godot")).contains("res://icon.svg") and FileAccess.file_exists(target.path_join("icon.svg")), "con el logo como ícono (m21-15)")
 	assert_false(FileAccess.file_exists(target.path_join("addons/godot_agent/config/project_config.tres")), "sin el config del usuario")
 	assert_false(AppLauncher.prepare(target).changed, "la segunda, nada que copiar")
 	FileAccess.open(target.path_join("addons/godot_agent/stale.gd"), FileAccess.WRITE).store_string("class_name Old\n")
