@@ -129,6 +129,7 @@ func _ready() -> void:
 	_tabs.new_session_requested.connect(func(_in_copy: bool) -> void: open_tab())
 	_tabs.close_requested.connect(close_tab)
 	_tabs.rename_requested.connect(_rename)
+	_tabs.sessions_changed.connect(_refresh_headings)
 	body.add_child(_tabs)
 	_turn_panel = TurnPanel.new()
 	_turn_panel.counter = _turn_counter
@@ -294,6 +295,14 @@ func open_tab() -> String:
 
 
 ## Lo que la barra lateral muestra de la sesión `id` además del estado: el agente (con su cuenta) y el modo.
+## Cada sesión con su nombre arriba del chat (m21-09): la barra de pestañas está oculta.
+func _refresh_headings() -> void:
+	for id: String in _tabs.ids():
+		var dock: Object = _tabs.dock(id)
+		if dock:
+			dock.call(&"set_heading", str(_tabs.state_of(id).label))
+
+
 func _describe_session(id: String) -> Dictionary:
 	if not _sessions.has(id):
 		return {}

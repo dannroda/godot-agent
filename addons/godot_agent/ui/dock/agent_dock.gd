@@ -1396,6 +1396,22 @@ static func oneshot_chip(state: String, phase_label: String, stage_label: String
 	return chip
 
 
+## El nombre de la sesión arriba del chat, antes del chip del agente (la app aparte, m21-09: ahí no hay
+## pestañas que lo muestren). "" lo saca.
+func set_heading(text: String) -> void:
+	var heading := get_node_or_null("Header/SessionHeading") as Label
+	if heading == null:
+		if text.is_empty():
+			return
+		heading = Label.new()
+		heading.name = "SessionHeading"
+		heading.add_theme_font_size_override(&"font_size", AgentTheme.px(18))
+		$Header.add_child(heading)
+		$Header.move_child(heading, 0)
+	heading.text = text
+	heading.visible = not text.is_empty()
+
+
 func _refresh_title() -> void:
 	_title_label.text = _model.title if not _model.title.is_empty() else (I18n.t("New session") if not _model.session_id.is_empty() else "")
 	HoverTooltip.set_text(_title_label, _title_label.text)

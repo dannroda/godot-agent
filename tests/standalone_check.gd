@@ -110,6 +110,8 @@ func _run() -> void:
 	await process_frame
 	var rows: Array = app._sidebar._list.get_children()
 	_check(rows.size() == 2 and not (app._tabs.get(&"_row") as Control).visible, "las dos en la barra lateral, sin la fila de pestañas (m21-04)")
+	var heading := app._tabs.dock(second).get_node_or_null("Header/SessionHeading") as Label
+	_check(heading != null and heading.text == app._tabs.state_of(second).label, "arriba del chat, el nombre de la sesión (m21-09)")
 	var saved_profiles: Array[AgentProfile] = app._settings.profiles()
 	var one: Array[AgentProfile] = [AgentProfile.from_dict({"id": "quota_check", "display_name": "Quota", "command": "true"})]
 	app._settings.save_profiles(one)
