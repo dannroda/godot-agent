@@ -68,3 +68,13 @@ func _clean() -> void:
 func test_other_project_window_args() -> void:
 	var Main := load("res://addons/godot_agent/standalone/main.gd")
 	assert_eq(Main.project_window_args("/juegos/dos/"), PackedStringArray(["--", "--project=/juegos/dos"]), "la carpeta, sin barra final")
+
+
+## m21-25: Inter y JetBrains Mono vienen con el addon, con su licencia: la app no depende de que estén instaladas.
+func test_bundled_fonts() -> void:
+	const AgentTheme := preload("res://addons/godot_agent/ui/agent_theme.gd")
+	for path: String in [AgentTheme.INTER_FONT, AgentTheme.MONO_FONT]:
+		assert_true(AgentTheme.bundled_font(path) is FontFile, "se carga del addon: " + path)
+	assert_true(AgentTheme.app_theme().default_font is FontFile, "la app usa Inter del addon, no una del sistema")
+	for license: String in ["Inter-OFL.txt", "JetBrainsMono-OFL.txt"]:
+		assert_true(FileAccess.get_file_as_string("res://addons/godot_agent/ui/fonts/" + license).contains("SIL Open Font License"), "con su licencia: " + license)

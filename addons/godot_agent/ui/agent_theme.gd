@@ -74,8 +74,11 @@ static func mono_font() -> Font:
 	var theme := editor_theme()
 	if theme.has_font(&"source", &"EditorFonts"):
 		return theme.get_font(&"source", &"EditorFonts")
+	var bundled := bundled_font(MONO_FONT)  # la del diseño, con el addon
+	if bundled:
+		return bundled
 	var font := SystemFont.new()
-	font.font_names = PackedStringArray(["JetBrains Mono", "monospace"])  # la del diseño, si está
+	font.font_names = PackedStringArray(["monospace"])
 	return font
 
 
@@ -176,12 +179,34 @@ static func app_theme() -> Theme:
 			theme.set_stylebox(state, type, panel(Color.TRANSPARENT, Color.TRANSPARENT, 6.0, 4.0))
 		theme.set_stylebox(&"hover", type, panel(Color(1, 1, 1, 0.05), Color.TRANSPARENT, 6.0, 4.0))
 		theme.set_stylebox(&"hover_pressed", type, panel(Color(1, 1, 1, 0.05), Color.TRANSPARENT, 6.0, 4.0))
-	# La fuente del diseño (Inter) si está instalada; si no, la de Godot.
-	if not OS.get_system_font_path("Inter").is_empty():
-		var inter := SystemFont.new()
-		inter.font_names = PackedStringArray(["Inter"])
+	# La fuente del diseño (m21-25): Inter, que viene con el addon (OFL, ui/fonts).
+	var inter := bundled_font(INTER_FONT)
+	if inter:
 		theme.default_font = inter
 	return theme
+
+
+## Las fuentes del diseño, con su licencia (SIL OFL 1.1) al lado. Solo las usa la app: el dock sigue
+## las del editor.
+const INTER_FONT := "res://addons/godot_agent/ui/fonts/InterVariable.ttf"
+const MONO_FONT := "res://addons/godot_agent/ui/fonts/JetBrainsMono-Regular.ttf"
+static var _fonts: Dictionary = {}
+
+
+## Una fuente del addon: importada si Godot ya la importó (la app y el ejecutable exportado); si no,
+## leída del .ttf (el addon recién copiado, los tests). null si no está.
+static func bundled_font(path: String) -> Font:
+	if _fonts.has(path):
+		return _fonts[path]
+	var font: Font = null
+	if ResourceLoader.exists(path):
+		font = load(path) as Font
+	elif FileAccess.file_exists(path):
+		var file := FontFile.new()
+		if file.load_dynamic_font(path) == OK:
+			font = file
+	_fonts[path] = font
+	return font
 
 
 ## El logo del proyecto (docs/images/logo.svg): el globo de chat ámbar con el prompt «›_». Entero, con

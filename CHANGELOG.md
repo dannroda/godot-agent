@@ -25,6 +25,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 - **The permission card and the turn summary, redesigned.** The permission card says what the agent wants to do (the group, like **Edit scenes**) with the tool next to it, shows short details in full in a monospaced box, and gives **Deny** and the other options a border. The end-of-turn summary is a card with **View changes** and **Undo turn** as buttons.
 - **Search Settings.** A field at the top of Settings shows only the settings that match and the sections where they are.
 - **More of the separate window's design.** A dashed **New session** button, how long each session has been in its state (**Working · 2 min**, **Ready · 5 min ago**), a short line next to the mode buttons with what the chosen mode does, **Context 38 % · turn 4** above the chat, and **▾** on the project to open another folder in a new window.
+- **The separate window ships its fonts.** Inter and JetBrains Mono come with the addon (SIL Open Font License, the license next to each font in `ui/fonts`), so the window looks the same whether or not they're installed. The dock in the editor keeps the editor's fonts.
 - **Undo turn only touches the turn's files.** It used to put the whole project back to before the turn, which with several tabs on the same folder also undid what the other tabs did afterwards. Now it reverts the files the turn changed, and the confirmation names those that changed again after the turn.
 
 ## [0.3.0] - 2026-11-24
