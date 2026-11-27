@@ -25,6 +25,9 @@ func test_forgets_closed_sessions() -> void:
 	sidebar._since["cerrada"] = {"status": "x", "at": 0.0}
 	sidebar._rebuild()
 	assert_false(sidebar._since.has("cerrada"), "una sesión que ya no está se olvida")
+	tabs.add_session("s1", Control.new(), preload("res://addons/godot_agent/session/session_model.gd").new(), "Sesión 1")
+	sidebar._rebuild()
+	assert_eq((sidebar._count as Label).text, I18n.t("1 open"), "una sola: en singular")
 	sidebar.free()
 	tabs.free()
 

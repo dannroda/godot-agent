@@ -20,3 +20,12 @@ func test_pick_then_add() -> void:
 	button.pressed.emit()
 	assert_eq(added, [SuggestedAgents.AGENTS[1]], "y agrega ese")
 	guide.free()
+
+
+## Los pasos no fuerzan un ancho mayor que el dock angosto.
+func test_steps_fit_a_narrow_dock() -> void:
+	var guide := FirstRunGuide.new()
+	guide.setup(Color.ORANGE)
+	var steps := guide.find_child("Steps", true, false) as Control
+	assert_true(steps.get_combined_minimum_size().x < 120, "los pasos se achican · %s" % steps.get_combined_minimum_size().x)
+	guide.free()

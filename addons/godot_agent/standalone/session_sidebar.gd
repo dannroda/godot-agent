@@ -117,7 +117,8 @@ func _rebuild() -> void:
 			_since.erase(id)  # una sesión cerrada
 	for id: String in _tabs.ids():
 		_list.add_child(_row(id))
-	_count.text = I18n.t("%d open") % _tabs.ids().size()
+	var open := _tabs.ids().size()
+	_count.text = I18n.t("1 open") if open == 1 else I18n.t("%d open") % open
 	_fill_accounts()
 
 

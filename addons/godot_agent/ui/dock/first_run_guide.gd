@@ -88,6 +88,11 @@ func _steps() -> Control:
 		step.add_child(bar)
 		var label := Label.new()
 		label.text = "%d · %s" % [i + 1, steps[i]]
+		# En el dock angosto (~220 px) los tres no entran enteros: se cortan y el tooltip los dice.
+		label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		label.clip_text = true
+		label.tooltip_text = label.text
+		label.mouse_filter = Control.MOUSE_FILTER_PASS
 		label.add_theme_font_size_override(&"font_size", AgentTheme.px(12))
 		if i > 0:
 			label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
