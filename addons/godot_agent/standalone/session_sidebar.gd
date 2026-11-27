@@ -112,6 +112,9 @@ func _rebuild() -> void:
 	for child: Node in _list.get_children():
 		_list.remove_child(child)
 		child.queue_free()
+	for id: String in _since.keys():
+		if not id in _tabs.ids():
+			_since.erase(id)  # una sesión cerrada
 	for id: String in _tabs.ids():
 		_list.add_child(_row(id))
 	_count.text = I18n.t("%d open") % _tabs.ids().size()

@@ -590,7 +590,7 @@ func _build_header() -> void:
 	_history_delete_menu.name = "DeleteSessionMenu"
 	_history_delete_menu.id_pressed.connect(_on_history_delete_selected)
 	_history_menu.add_child(_history_delete_menu)
-	_history_button.pressed.connect(_show_history_menu)
+	_history_button.pressed.connect(show_history_menu)
 	_new_session_button.icon = AgentTheme.icon(&"Add")
 	_new_session_button.tooltip_text = I18n.t("New session or new tab")
 	_new_session_button.pressed.connect(func() -> void:
@@ -1728,7 +1728,7 @@ func _warn_api_key(profile: AgentProfile) -> void:
 
 ## Sesiones de este proyecto, la más reciente primero (spec §11 y session/list de m11-16).
 ## El historial de sesiones, abierto debajo de `anchor` (la cabecera de la app, m21-08) o del botón del dock.
-func _show_history_menu(anchor: Control = null) -> void:
+func show_history_menu(anchor: Control = null) -> void:
 	if anchor == null:
 		anchor = _history_button
 	_history_menu.clear()

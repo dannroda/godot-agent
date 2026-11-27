@@ -32,6 +32,7 @@ const TurnChanges := preload("../ui/turn_changes.gd")
 const TurnCounter := preload("../ui/turn_counter.gd")
 const ToolCall := preload("../session/tool_call.gd")
 const AgentDockScene := preload("../ui/dock/agent_dock.tscn")
+const AgentDock := preload("../ui/dock/agent_dock.gd")
 const McpServer := preload("../mcp/mcp_server.gd")
 const McpPublication := preload("../mcp/mcp_publication.gd")
 const StdioShimInstaller := preload("../mcp/stdio_shim_installer.gd")
@@ -242,9 +243,9 @@ func _build_header(root: String) -> Control:
 		row.add_child(button)
 		if spec[0] == "HistoryButton":
 			button.pressed.connect(func() -> void:
-				var dock: Object = _tabs.dock(_tabs.active_id())
+				var dock := _tabs.dock(_tabs.active_id()) as AgentDock
 				if dock:
-					dock.call(&"_show_history_menu", button))
+					dock.show_history_menu(button))
 		else:
 			button.pressed.connect(_open_settings)
 	var timer := Timer.new()

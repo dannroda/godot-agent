@@ -354,4 +354,8 @@ func test_search() -> void:
 	assert_false(nav.is_item_disabled(SettingsDialog.SettingsSection.PERMISSIONS), "y las secciones")
 	var hidden_after: Array = dialog.find_children("*", "Control", true, false).filter(func(c: Control) -> bool: return not c.visible)
 	assert_eq(hidden_after.size(), hidden_before.size(), "lo que estaba oculto sigue igual")
+	dialog.filter_settings("zzzz-nada")
+	(dialog.get(&"_search") as LineEdit).text = "zzzz-nada"
+	dialog.call(&"_load")  # lo que hace open() antes de mostrarse
+	assert_true((dialog.get(&"_search") as LineEdit).text.is_empty() and not nav.is_item_disabled(SettingsDialog.SettingsSection.AGENTS), "al reabrir, sin la búsqueda de antes")
 	dialog.free()

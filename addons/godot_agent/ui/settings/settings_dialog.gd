@@ -266,8 +266,6 @@ func _group_buttons() -> void:
 	box.add_child(_changes_label)
 	box.move_child(_changes_label, 0)
 	push.size_flags_horizontal = Control.SIZE_FILL
-	var accent := _settings.accent_color() if _settings else AgentTheme.WARNING
-	AgentTheme.style_accent_button(get_ok_button(), accent, 8, 8)
 	for button: Button in [get_ok_button(), get_cancel_button()]:
 		button.custom_minimum_size = Vector2(AgentTheme.px(96), AgentTheme.px(36))
 
@@ -301,11 +299,18 @@ func _snapshot_sections() -> void:
 	_refresh_dirty()
 
 
+## Guardar y los puntos de cambios con el acento guardado: al abrir, por si cambió desde la última vez.
+func _restyle_accent() -> void:
+	var accent := _settings.accent_color() if _settings else AgentTheme.WARNING
+	AgentTheme.style_accent_button(get_ok_button(), accent, 8, 8)
+	_dots = [AgentTheme.dot(Color.TRANSPARENT, 7.0), AgentTheme.dot(accent, 7.0)]
+
+
 ## El punto de una sección con cambios sin guardar (a la izquierda del nombre), o uno transparente del
 ## mismo tamaño para que los nombres queden alineados.
 func _dirty_dot() -> Texture2D:
 	if _dots.is_empty():
-		_dots = [AgentTheme.dot(Color.TRANSPARENT, 7.0), AgentTheme.dot(_accent_picker.color if _accent_picker else AgentTheme.WARNING, 7.0)]
+		_restyle_accent()
 	return _dots[1]
 
 
@@ -900,6 +905,11 @@ func _build_export(page: VBoxContainer) -> void:
 func _load() -> void:
 	_build()
 	_error_label.text = ""
+	_restyle_accent()
+	# Cada vez desde cero: una búsqueda de la vez anterior dejaba la sección pedida vacía o apagada.
+	if not _search.text.is_empty():
+		_search.text = ""
+		filter_settings("")
 	_profiles = _settings.profiles()
 	_forget_models = []
 	_second_opinion_id = str(_settings.get_value(HarnessSettings.KEY_SECOND_OPINION, ""))

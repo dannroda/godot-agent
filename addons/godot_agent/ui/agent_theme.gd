@@ -238,12 +238,19 @@ static func logo_glyph(side_px: float = 22.0) -> Texture2D:
 
 ## Un ícono de trazo dibujado de un SVG de 24×24 (`paths`: los `<path>`/`<circle>` de adentro), en
 ## `color`, a `side_px`. Fuera del editor no están sus íconos (m21-08).
+## Se guardan: los paneles de la app se rearman seguido (el turno en vivo) y rasterizar cada vez sobra.
 static func stroke_icon(paths: String, color: Color, side_px: float = 18.0) -> Texture2D:
-	var svg := '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#%s" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">%s</svg>' % [color.to_html(false), paths]
+	var key := "%s|%s|%s" % [paths, color.to_html(true), side_px]
+	if _stroke_icons.has(key):
+		return _stroke_icons[key]
+	var svg := '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#%s" stroke-opacity="%s" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">%s</svg>' % [color.to_html(false), color.a, paths]
 	var image := Image.new()
-	if image.load_svg_from_string(svg, px(side_px) / 24.0) != OK:
-		return null
-	return ImageTexture.create_from_image(image)
+	var texture: Texture2D = ImageTexture.create_from_image(image) if image.load_svg_from_string(svg, px(side_px) / 24.0) == OK else null
+	_stroke_icons[key] = texture
+	return texture
+
+
+static var _stroke_icons: Dictionary = {}
 
 
 ## Un fondo con borde solo en algunos lados (las líneas entre columnas de la app, m21-16).
