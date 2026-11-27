@@ -56,7 +56,10 @@ static func is_editor_managed(path: String) -> bool:
 
 
 ## Con qué se cambia un archivo que mantiene el editor (para el mensaje al agente).
-static func alternative_for(path: String) -> String:
+## `editor_tools` false: sin el editor (la app aparte, m20-06), con un script de Godot headless.
+static func alternative_for(path: String, editor_tools: bool = true) -> String:
+	if not editor_tools:
+		return "with no editor open, build scenes and resources with a script run by headless Godot that saves them with ResourceSaver (\"$GODOT\" --headless --path <project> --script <script>.gd), and change project settings the same way with ProjectSettings.save()"
 	if path.get_file() == "project.godot":
 		return "change project settings with the godot.* tools (set_project_setting, set_input_action, set_autoload)"
 	if path.get_extension().to_lower() == "tres":
@@ -65,9 +68,10 @@ static func alternative_for(path: String) -> String:
 
 
 ## Por qué se rechazó un comando que escribe `target` (para el agente, en inglés): qué usar en su lugar.
-static func rejection_reason(target: String) -> String:
-	var alternative := alternative_for(target) if is_editor_managed(target) \
-		else "write scripts and text files with your own file tools (the harness syncs them with the editor), and move, copy or delete project files with godot.move_file, godot.copy_file and godot.delete_file"
+static func rejection_reason(target: String, editor_tools: bool = true) -> String:
+	var alternative := alternative_for(target, editor_tools) if is_editor_managed(target) \
+		else "write scripts and text files with your own file tools (the harness syncs them with the editor), and move, copy or delete project files with godot.move_file, godot.copy_file and godot.delete_file" if editor_tools \
+		else "write scripts and text files with your own file tools; with no editor open, move, copy or delete project files from a script run by headless Godot (DirAccess), which keeps their .uid files with them"
 	return "it writes %s in the project without going through the editor, which the harness rejects in every mode. Instead, %s. Writing outside the project (in /tmp, for example) is not affected; a cd earlier in the same command counts." % [target, alternative]
 
 

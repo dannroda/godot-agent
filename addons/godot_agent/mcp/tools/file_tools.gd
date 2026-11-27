@@ -8,6 +8,8 @@ extends RefCounted
 ## - Copiar: la copia es otro recurso (uid nuevo); también trae archivos de afuera del proyecto.
 ## - Borrar: se niega si algo lo referencia o si es una escena abierta; va a la papelera si se puede.
 
+const AgentTheme := preload("res://addons/godot_agent/ui/agent_theme.gd")
+
 const McpTool := preload("../mcp_tool.gd")
 const WriteTargets := preload("../write_targets.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
@@ -462,7 +464,7 @@ static func _resource_files(path: String, is_dir: bool) -> PackedStringArray:
 
 static func _open_scenes_in(path: String, is_dir: bool) -> PackedStringArray:
 	var result: PackedStringArray = []
-	for scene: String in EditorInterface.get_open_scenes():
+	for scene: String in AgentTheme.editor().get_open_scenes():
 		if scene == path or (is_dir and scene.begins_with(path + "/")):
 			result.append(scene)
 	return result
@@ -542,4 +544,4 @@ func _refresh(changed: PackedStringArray) -> void:
 	if on_file_written.is_valid():
 		for path: String in changed:
 			on_file_written.call(ProjectSettings.globalize_path(path))
-	EditorInterface.get_resource_filesystem().scan()
+	AgentTheme.editor().get_resource_filesystem().scan()

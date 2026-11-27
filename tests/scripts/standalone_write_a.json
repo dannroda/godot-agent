@@ -1,0 +1,8 @@
+{
+	"_about": "m20-04/m20-09 standalone_check: the agent of one tab writes its own file in the folder the app opened, through fs/write_text_file.",
+	"turns": [{"steps": [
+		{"chunk": "Writing a file."},
+		{"request": {"method": "fs/write_text_file", "params": {"path": "{cwd}/a.gd", "content": "extends Node\n"}}},
+		{"stop": "end_turn"}
+	]}]
+}

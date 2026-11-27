@@ -13,6 +13,9 @@ const TurnSnapshots := preload("../session/turn_snapshots.gd")
 
 const THROTTLE_S := 2.0
 
+## Cambió lo calculado para `session` (o se borró al terminar su turno): el panel de la app aparte (m21-05).
+signal updated(session: String)
+
 ## `(session) -> TurnSnapshots`, `(session) -> SessionModel`, `(session) -> AgentDock` (con
 ## set_turn_changes()), y `(data: Dictionary) -> void` para abrir el diálogo.
 var snapshots_of: Callable
@@ -61,6 +64,7 @@ func clear(session: String) -> void:
 	var dock: Object = dock_of.call(session) if dock_of.is_valid() else null
 	if dock:
 		dock.set_turn_changes({})
+	updated.emit(session)
 
 
 func _process(_delta: float) -> void:
@@ -97,6 +101,7 @@ func refresh(session: String) -> void:
 	var dock: Object = dock_of.call(session) if dock_of.is_valid() else null
 	if dock:
 		dock.set_turn_changes(summary)
+	updated.emit(session)
 
 
 ## Lo último que se calculó para la sesión ({} si nada).

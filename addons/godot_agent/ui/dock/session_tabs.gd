@@ -10,12 +10,18 @@ signal close_requested(id: String)
 signal active_changed(id: String)
 ## El usuario escribió un nombre para la sesión ("" = volver al de por defecto). Lo aplica set_label().
 signal rename_requested(id: String, name: String)
+## Cambió algo que muestra una sesión (nombre, estado, cuál está activa, cuáles hay): para otra vista
+## de las mismas sesiones, como la barra lateral de la app aparte (m21-04).
+signal sessions_changed
 
 const NAME_MAX := 40
 ## Ícono del editor de la pestaña de una copia aparte (sin él, «⎘» delante del nombre).
 const COPY_ICON := &"Duplicate"
 ## Ícono de la pestaña de la sesión principal, que no se cierra (m12-50).
 const PIN_ICON := &"Pin"
+## El punto de estado de cada pestaña (m21-03): trabajando y turno sin mirar. Esperarte va en `accent`.
+const BUSY_COLOR := Color("#4fc1a6")
+const UNREAD_COLOR := Color("#6ea8fe")
 
 const AgentTheme := preload("../agent_theme.gd")
 const I18n := preload("../../core/i18n.gd")
@@ -23,6 +29,13 @@ const EditorWindows := preload("../editor_windows.gd")
 const SessionModel := preload("../../session/session_model.gd")
 const DesktopNotifier := preload("../../editor/desktop_notifier.gd")
 
+## El color de lo que te espera (un permiso o una respuesta), el acento del harness.
+var accent := Color("#f0a85a")
+## Sin la fila de pestañas: otra vista elige la sesión (la barra lateral de la app aparte, m21-04).
+var bar_hidden := false:
+	set(value):
+		bar_hidden = value
+		_row.visible = _ids.size() > 1 and not bar_hidden
 var _bar: TabBar
 ## La fila de pestañas: solo con dos sesiones o más (m12-14); con una, el «+» del dock abre otra.
 var _row: HBoxContainer
@@ -46,9 +59,9 @@ var _toasted: Dictionary = {}  # id -> true
 var notify_outside_enabled: Callable
 ## Sesiones que ya avisaron fuera del editor que esperan: uno por espera.
 var _outside_notified: Dictionary = {}  # id -> true
-## Sesiones que terminaron un turno sin ser la pestaña activa (m11-91): «◆» hasta que las mirás.
+## Sesiones que terminaron un turno sin ser la pestaña activa (m11-91): punto azul hasta que las mirás.
 var _unread: Dictionary = {}  # id -> true
-## «⚠ 2» / «◆ 1» en la fila: lleva a la próxima pestaña que te espera (m11-91).
+## «⚠ 2» / punto azul y «1» en la fila: lleva a la próxima pestaña que te espera (m11-91).
 var _attention_button: Button
 var _rename_popup: PopupPanel
 var _rename_edit: LineEdit
@@ -126,7 +139,7 @@ func add_session(id: String, dock: Control, model: SessionModel, label: String) 
 	_defaults[id] = label
 	_stack.add_child(dock)
 	_bar.add_tab(label)
-	_row.visible = _ids.size() > 1
+	_row.visible = _ids.size() > 1 and not bar_hidden
 	if _ids.size() > 1:
 		_bar.set_tab_button_icon(_ids.size() - 1, AgentTheme.icon(&"Close"))
 		_refresh_tab(_ids[0])  # con la segunda pestaña, la principal muestra que es fija
@@ -167,7 +180,7 @@ func remove_session(id: String) -> void:
 	_outside_notified.erase(id)
 	_unread.erase(id)
 	_bar.remove_tab(index)
-	_row.visible = _ids.size() > 1
+	_row.visible = _ids.size() > 1 and not bar_hidden
 	_refresh_tab(_ids[0])
 	EditorWindows.rescue_progress(dock)
 	_stack.remove_child(dock)
@@ -215,8 +228,8 @@ func set_label(id: String, name: String) -> void:
 	_refresh_tab(id)
 
 
-## Abre el campo para renombrar la sesión, debajo de su pestaña.
-func start_rename(id: String) -> void:
+## Abre el campo para renombrar la sesión, debajo de su pestaña (o de `anchor`, si la eligen desde otra vista).
+func start_rename(id: String, anchor: Control = null) -> void:
 	var index := _ids.find(id)
 	if index < 0:
 		return
@@ -224,7 +237,10 @@ func start_rename(id: String) -> void:
 	_rename_edit.text = _labels[id]
 	_rename_edit.placeholder_text = _defaults[id]
 	var rect := _bar.get_tab_rect(index)
-	_rename_popup.popup(Rect2i(Vector2i(_bar.get_screen_position() + rect.position + Vector2(0, rect.size.y)), Vector2i.ZERO))
+	var at := _bar.get_screen_position() + rect.position + Vector2(0, rect.size.y)
+	if anchor:
+		at = anchor.get_screen_position() + Vector2(0, anchor.size.y)
+	_rename_popup.popup(Rect2i(Vector2i(at), Vector2i.ZERO))
 	_rename_edit.grab_focus()
 	_rename_edit.select_all()
 
@@ -270,20 +286,36 @@ func _refresh_tab(id: String) -> void:
 	if not waiting:
 		_toasted.erase(id)
 		_outside_notified.erase(id)
-	var mark := "⚠ " if waiting else ("● " if model.is_busy() else ("◆ " if _unread.has(id) else ""))
+	# Un punto de color dice el estado: ámbar te espera (y «⚠», que se distingue sin color), verde
+	# trabajando, azul un turno terminado sin mirar (m21-03); va al lado del pin o de la copia.
+	var busy := model.is_busy()
+	var state_color := accent if waiting else (BUSY_COLOR if busy else (UNREAD_COLOR if _unread.has(id) else Color.TRANSPARENT))
 	# La principal (sin X, m7-44) lleva un pin con otra pestaña al lado (m12-50); nunca es una copia.
 	var pinned := is_pinned(id)
-	var tab_icon := AgentTheme.icon(PIN_ICON) if pinned else (AgentTheme.icon(COPY_ICON) if _copies.has(id) else null)
+	var base_icon := AgentTheme.icon(PIN_ICON) if pinned else (AgentTheme.icon(COPY_ICON) if _copies.has(id) else null)
+	var tab_icon := AgentTheme.dot_beside(state_color, base_icon) if state_color.a > 0.0 else base_icon
 	_bar.set_tab_icon(index, tab_icon)
 	if tab_icon:
-		_bar.set_tab_icon_max_width(index, AgentTheme.px(16))
+		_bar.set_tab_icon_max_width(index, tab_icon.get_width() if state_color.a > 0.0 else AgentTheme.px(16))
 	# Sin el ícono (fuera del editor), la copia conserva su «⎘»; el pin no tiene glifo: el tooltip alcanza.
-	_bar.set_tab_title(index, mark + ("⎘ " if _copies.has(id) and tab_icon == null else "") + str(_labels[id]))
+	var copy_mark := "⎘ " if _copies.has(id) and base_icon == null else ""
+	_bar.set_tab_title(index, ("⚠ " if waiting else "") + copy_mark + str(_labels[id]))
 	var tooltip := label(id) + ("\n" + str(_copies[id]) if _copies.has(id) else "")
 	if pinned:
 		tooltip += "\n" + I18n.t("Main session: it can't be closed. Review marks and Remote Control use it. To start over: + → New session.")
 	_bar.set_tab_tooltip(index, tooltip + "\n" + I18n.t("Double-click to rename"))
 	_refresh_attention()
+	sessions_changed.emit()
+
+
+## Lo que muestra una sesión, para otra vista: `{label, waiting, busy, unread, closable, model}`.
+func state_of(id: String) -> Dictionary:
+	var model: SessionModel = _models.get(id)
+	if model == null:
+		return {}
+	var waiting := not model.pending_permissions.is_empty() or not model.pending_elicitations.is_empty()
+	return {"label": label(id), "waiting": waiting, "busy": model.is_busy(), "unread": _unread.has(id),
+		"closable": _ids.find(id) > 0, "model": model}
 
 
 ## Las que esperan un permiso o una respuesta tuya.
@@ -296,7 +328,7 @@ func _waiting_ids() -> Dictionary:
 	return waiting
 
 
-## El botón de la fila: cuántas otras pestañas te esperan («⚠»: un permiso o una respuesta; «◆»: un
+## El botón de la fila: cuántas otras pestañas te esperan («⚠»: un permiso o una respuesta; punto azul: un
 ## turno terminado sin mirar) y, en el tooltip, cuáles.
 func _refresh_attention() -> void:
 	if _attention_button == null:
@@ -313,7 +345,8 @@ func _refresh_attention() -> void:
 		elif _unread.has(id):
 			unread_names.append(str(_labels[id]))
 	_attention_button.visible = not (waiting_names.is_empty() and unread_names.is_empty())
-	_attention_button.text = ("⚠ %d" % waiting_names.size()) if not waiting_names.is_empty() else ("◆ %d" % unread_names.size())
+	_attention_button.text = ("⚠ %d" % waiting_names.size()) if not waiting_names.is_empty() else str(unread_names.size())
+	_attention_button.icon = null if not waiting_names.is_empty() else AgentTheme.dot(UNREAD_COLOR)
 	var lines: PackedStringArray = []
 	if not waiting_names.is_empty():
 		lines.append(I18n.t("Waiting for you: %s") % ", ".join(waiting_names))
@@ -343,7 +376,7 @@ func _notify_waiting(id: String, message: String = "") -> void:
 	if dock == null or dock.is_visible_in_tree() or not Engine.is_editor_hint() or not _claim_toast(id):
 		return
 	var text := message if not message.is_empty() else I18n.t("«%s» is waiting for your permission.")
-	EditorInterface.get_editor_toaster().push_toast(text % _labels[id], EditorToaster.SEVERITY_WARNING)
+	AgentTheme.editor().get_editor_toaster().push_toast(text % _labels[id], 1)
 
 
 ## Con la ventana del editor sin foco, avisa fuera del editor (m11-40). `waiting`: una espera, que
@@ -373,3 +406,4 @@ func _on_tab_changed(index: int) -> void:
 			_refresh_tab(_ids[index])
 		_refresh_attention()
 		active_changed.emit(_ids[index])
+		sessions_changed.emit()

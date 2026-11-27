@@ -94,6 +94,7 @@ const MORE_EXPORT := 5
 const MORE_RESTART := 6
 const MORE_DIAGNOSTIC := 7
 const MORE_UPDATES := 8
+const MORE_SEPARATE_WINDOW := 9
 ## Conectando más de esto, la línea de estado explica que la primera vez se descarga el agente.
 const CONNECTING_HINT_AFTER_S := 4
 ## Sesiones anteriores en el dock vacío (m12-12).
@@ -106,6 +107,7 @@ const AgentLog := preload("../../core/agent_log.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const HoverTooltip := preload("../hover_tooltip.gd")
 const EditorContext := preload("../editor_context.gd")
+const AppLauncher := preload("../../standalone/app_launcher.gd")
 const ScopeCompass := preload("../../mcp/scope_compass.gd")
 const ExportPresetsPatcher := preload("../../export/export_presets_patcher.gd")
 const ConversationView := preload("conversation_view.gd")
@@ -158,6 +160,15 @@ const MODE_TOOLTIPS: Dictionary = {
 	SessionModel.HarnessMode.BUILD: "The agent edits scenes, scripts and settings and runs the game without asking. Shell commands, the Asset Store and project tools ask first.",  # i18n
 	SessionModel.HarnessMode.AUTO: "The agent edits scenes, scripts and settings and runs the game without asking. Shell commands on the allowlist run on their own; any other asks (Settings → Permissions).",  # i18n
 	SessionModel.HarnessMode.ONESHOT: "The agent works autonomously until the goal is met, verifying after each task.",  # i18n
+}
+## Lo que hace cada modo en pocas palabras: junto a sus botones en la ventana de la app (m21-19).
+const MODE_HINTS: Dictionary = {
+	SessionModel.HarnessMode.ASK: "Only answers",  # i18n
+	SessionModel.HarnessMode.PLAN: "Reads and proposes a plan",  # i18n
+	SessionModel.HarnessMode.REVIEW: "Reads and reports findings",  # i18n
+	SessionModel.HarnessMode.BUILD: "Edits; commands ask first",  # i18n
+	SessionModel.HarnessMode.AUTO: "Edits and runs allowed commands",  # i18n
+	SessionModel.HarnessMode.ONESHOT: "Works until the goal is met",  # i18n
 }
 ## Prompts enviados en este proyecto (flechas en el composer). Datos del usuario, fuera del repo.
 const PROMPT_HISTORY_PATH := "user://godot_agent/prompt_history.json"
@@ -213,7 +224,7 @@ var _profile_id: String = ""
 var _accounts: Dictionary = {}
 ## Las cuentas que muestra el menú del agente abierto: [{dir, name, email}].
 var _menu_accounts: Array[Dictionary] = []
-var _account_dialog: EditorFileDialog
+var _account_dialog: ConfirmationDialog  # EditorFileDialog en el editor; FileDialog en la app (m20-07)
 var _accent: Color = HarnessSettings.DEFAULT_ACCENT
 var _presets_mtime: int = -1
 var _pending_prompt: String = ""
@@ -256,6 +267,8 @@ var modes_dir: String = ""
 var _project_modes: Array[Dictionary] = []
 ## Los ids del selector de modos para los modos del proyecto: PROJECT_MODE_ID + su índice.
 const PROJECT_MODE_ID := 100
+## Los modos a la vista como botones en el composer (m21-02); los demás, en su «⋯».
+const PINNED_MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.PLAN, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO]
 var _context_watch := ContextWatch.new()
 var _handoff_banner: PanelContainer
 var _handoff_banner_label: Label
@@ -270,7 +283,7 @@ var _handoff_offer_label: Label
 var _handoff_others: MenuButton
 var _handoff_items: Array[Dictionary] = []
 var _add_context_menu: PopupMenu
-var _file_dialog: EditorFileDialog
+var _file_dialog: ConfirmationDialog  # EditorFileDialog o FileDialog
 var _review_panel: ReviewPanel
 var _quota_ring: QuotaRing
 ## Header de una fila (m12-14): el chip del agente con su estado (elige el perfil), el título, el
@@ -387,9 +400,9 @@ func _ready() -> void:
 	_composer.plan_requested.connect(_on_plan_requested)
 	_composer.recipe_requested.connect(open_recipe_picker)
 	load_recipes.call_deferred()
-	if Engine.is_editor_hint() and EditorInterface.get_resource_filesystem():
-		EditorInterface.get_resource_filesystem().filesystem_changed.connect(load_recipes)
-		EditorInterface.get_resource_filesystem().filesystem_changed.connect(load_project_modes)
+	if Engine.is_editor_hint() and AgentTheme.editor().get_resource_filesystem():
+		AgentTheme.editor().get_resource_filesystem().filesystem_changed.connect(load_recipes)
+		AgentTheme.editor().get_resource_filesystem().filesystem_changed.connect(load_project_modes)
 	_composer.handoff_requested.connect(func() -> void: request_handoff())
 	_composer.remember_available = true
 	_composer.cancel_requested.connect(_on_cancel_requested)
@@ -577,7 +590,7 @@ func _build_header() -> void:
 	_history_delete_menu.name = "DeleteSessionMenu"
 	_history_delete_menu.id_pressed.connect(_on_history_delete_selected)
 	_history_menu.add_child(_history_delete_menu)
-	_history_button.pressed.connect(_show_history_menu)
+	_history_button.pressed.connect(show_history_menu)
 	_new_session_button.icon = AgentTheme.icon(&"Add")
 	_new_session_button.tooltip_text = I18n.t("New session or new tab")
 	_new_session_button.pressed.connect(func() -> void:
@@ -662,6 +675,16 @@ func _build_header() -> void:
 	_more_button.about_to_popup.connect(_fill_more_menu)
 	_more_button.get_popup().id_pressed.connect(_on_more_selected)
 	_settings_button.add_sibling(_more_button)
+	# A la vista, antes de «⋯» (m21-13): en el editor, abrir las sesiones en una ventana aparte.
+	if AgentTheme.has_editor():
+		var separate := Button.new()
+		separate.name = "SeparateWindowButton"
+		separate.flat = true
+		separate.icon = AgentTheme.icon(&"ExternalLink")
+		separate.tooltip_text = I18n.t("Open in a separate window")
+		separate.pressed.connect(open_separate_window)
+		_more_button.add_sibling(separate)
+		_more_button.get_parent().move_child(separate, _more_button.get_index())
 
 
 ## El modo va en un dropdown de la fila del composer, al lado del modelo (m7-32): los cinco botones
@@ -679,13 +702,13 @@ func _apply_mode_items() -> void:
 	for mode: SessionModel.HarnessMode in SessionModel.HARNESS_MODE_LABELS:
 		if mode == SessionModel.HarnessMode.ONESHOT and not allow_oneshot:
 			continue
-		modes.append({"id": mode, "label": I18n.t(SessionModel.HARNESS_MODE_LABELS[mode]), "tooltip": I18n.t(MODE_TOOLTIPS[mode])})
+		modes.append({"id": mode, "label": I18n.t(SessionModel.HARNESS_MODE_LABELS[mode]), "tooltip": I18n.t(MODE_TOOLTIPS[mode]), "hint": I18n.t(MODE_HINTS[mode]), "pinned": mode in PINNED_MODES})
 	if not _project_modes.is_empty():
 		modes.append({"separator": I18n.t("Project modes")})
 	for index: int in _project_modes.size():
 		var mode: Dictionary = _project_modes[index]
 		var base := _project_base_label(mode)
-		modes.append({"id": PROJECT_MODE_ID + index, "label": ProjectModes.label(mode, base), "tooltip": ProjectModes.summary(mode, base), "icon": str(mode.get("icon", ""))})
+		modes.append({"id": PROJECT_MODE_ID + index, "label": ProjectModes.label(mode, base), "tooltip": ProjectModes.summary(mode, base), "hint": str(mode.get("when_to_use", "")), "icon": str(mode.get("icon", ""))})
 	_composer.set_modes(modes)
 
 
@@ -795,6 +818,9 @@ func _fill_more_menu() -> void:
 		popup.set_item_tooltip(popup.item_count - 1, I18n.t("Sign out of this agent's account: the next session asks you to sign in."))
 		popup.set_item_disabled(popup.item_count - 1, not ready)
 	popup.add_separator(I18n.t("Harness"))
+	if AgentTheme.has_editor():
+		popup.add_icon_item(AgentTheme.icon(&"ExternalLink"), I18n.t("Open in a separate window"), MORE_SEPARATE_WINDOW)
+		popup.set_item_tooltip(popup.item_count - 1, I18n.t("Opens the agent sessions in a window of their own, outside the editor, on this project: several at once, each with its agent and account. While the editor stays open, they use its Godot tools."))
 	popup.add_icon_item(AgentTheme.icon(&"Tools"), I18n.t("Settings…"), MORE_SETTINGS)
 	popup.add_icon_item(AgentTheme.icon(&"EditorPlugin"), I18n.t("Extensions…"), MORE_EXTENSIONS)
 	popup.set_item_tooltip(popup.item_count - 1, I18n.t("Extensions: plugins, marketplaces and MCP servers"))
@@ -827,7 +853,23 @@ func _on_more_selected(id: int) -> void:
 			open_diagnostic_dialog()
 		MORE_UPDATES:
 			updates_requested.emit()
+		MORE_SEPARATE_WINDOW:
+			open_separate_window()
 
+
+
+## La app aparte sobre este proyecto (m20-13), con su propio proyecto para que no corran los autoloads
+## del juego. Copiar el addon e importarlo la primera vez tarda: va en un hilo.
+func open_separate_window() -> void:
+	_model.add_notice(I18n.t("Opening the separate window… The first time it copies the harness and imports it, which takes a few seconds."))
+	var project := EditorContext.project_path()
+	var thread := Thread.new()
+	thread.start(func() -> Error: return AppLauncher.launch(project))
+	while thread.is_alive():
+		await get_tree().process_frame
+	var error: Error = thread.wait_to_finish()
+	if error != OK:
+		_model.add_notice(I18n.t("Could not open the separate window (%s).") % error_string(error), ChatEntry.NoticeLevel.ERROR)
 
 
 ## «Copy diagnostic report…» (m11-80): la vista previa; «Copiar» lo deja en el portapapeles.
@@ -887,7 +929,7 @@ func export_context() -> Dictionary:
 	if not str(_model.account.get("email", "")).is_empty():
 		emails.append(str(_model.account.email))
 	return {"title": "%s · %s · %s" % [title, project if not project.is_empty() else "Godot", Time.get_date_string_from_system()],
-		"project": ProjectSettings.globalize_path("res://"), "home": home, "emails": emails,
+		"project": EditorContext.project_path(), "home": home, "emails": emails,
 		"redact": _controller.agent_log.redact if _controller and _controller.agent_log else Callable()}
 
 
@@ -1087,17 +1129,17 @@ func _on_account_selected(dir: String) -> void:
 
 func _pick_account_folder() -> void:
 	if _account_dialog == null:
-		_account_dialog = EditorFileDialog.new()
-		_account_dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_DIR
-		_account_dialog.access = EditorFileDialog.ACCESS_FILESYSTEM
+		_account_dialog = AgentTheme.file_dialog()
+		_account_dialog.set(&"file_mode", FileDialog.FILE_MODE_OPEN_DIR)
+		_account_dialog.set(&"access", FileDialog.ACCESS_FILESYSTEM)
 		_account_dialog.title = I18n.t("Agent configuration folder")
-		_account_dialog.dir_selected.connect(func(dir: String) -> void:
+		_account_dialog.connect(&"dir_selected", func(dir: String) -> void:
 			var base := _base_profile()
 			if base:
 				_settings.add_account(AgentAccounts.variable_of(base), AgentAccounts.normalize(dir))
 			_on_account_selected(dir))
 		add_child(_account_dialog)
-	_account_dialog.current_dir = AgentAccounts.home()
+	_account_dialog.set(&"current_dir", AgentAccounts.home())
 	_account_dialog.popup_file_dialog()
 
 
@@ -1373,6 +1415,86 @@ static func oneshot_chip(state: String, phase_label: String, stage_label: String
 	return chip
 
 
+## El nombre de la sesión arriba del chat, antes del chip del agente (la app aparte, m21-09: ahí no hay
+## pestañas que lo muestren). "" lo saca.
+func set_heading(text: String) -> void:
+	var heading := get_node_or_null("Header/SessionHeading") as Label
+	if heading == null:
+		if text.is_empty():
+			return
+		heading = Label.new()
+		heading.name = "SessionHeading"
+		heading.add_theme_font_size_override(&"font_size", AgentTheme.px(18))
+		$Header.add_child(heading)
+		$Header.move_child(heading, 1 if $Header.has_node("HeaderGapStart") else 0)
+	heading.text = text
+	heading.visible = not text.is_empty()
+
+
+## La forma de la ventana de la app (m21-16): una línea bajo el encabezado y el composer en una caja,
+## con margen para ella.
+func use_window_layout() -> void:
+	if has_node("HeaderLine"):
+		return
+	var line := HSeparator.new()
+	line.name = "HeaderLine"
+	add_child(line)
+	move_child(line, $Header.get_index() + 1)
+	var slot := %ComposerSlot as MarginContainer
+	var pad := AgentTheme.px(Composer.BOX_PAD + 8.0)
+	for side: String in ["left", "right", "bottom"]:
+		slot.add_theme_constant_override("margin_" + side, pad)
+	slot.add_theme_constant_override(&"margin_top", AgentTheme.px(Composer.BOX_PAD))
+	_composer.set_boxed(true)
+	# «Contexto 38 % · turno 4» a la derecha del encabezado (m21-22).
+	var context := Label.new()
+	context.name = "ContextLabel"
+	context.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	$Header.add_child(context)
+	$Header.move_child(context, _title_label.get_index() + 1)
+	_model.usage_changed.connect(func(_used: int, _size: int) -> void: _refresh_context_label())
+	_model.state_changed.connect(func(state: SessionModel.SessionState) -> void:
+		if state == SessionModel.SessionState.PROMPTING:
+			_turns_seen += 1
+		_refresh_context_label())
+	_model.entries_cleared.connect(func() -> void:
+		_turns_seen = 0
+		_refresh_context_label())
+	_refresh_context_label()
+	$Header.add_theme_constant_override(&"separation", AgentTheme.px(10))
+	$Header.alignment = BoxContainer.ALIGNMENT_BEGIN
+	for child: Node in $Header.get_children():
+		if child is Control:
+			(child as Control).size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	for at_end: bool in [false, true]:
+		var gap := Control.new()
+		gap.name = "HeaderGapEnd" if at_end else "HeaderGapStart"
+		gap.custom_minimum_size = Vector2(AgentTheme.px(6), AgentTheme.px(48))
+		$Header.add_child(gap)
+		if not at_end:
+			$Header.move_child(gap, 0)
+
+
+## Turnos empezados en esta vista de la sesión (m21-22).
+var _turns_seen := 0
+
+
+func _refresh_context_label() -> void:
+	var label := get_node_or_null("Header/ContextLabel") as Label
+	if label:
+		label.text = context_text(_model.usage_used, _model.usage_size, _turns_seen)
+
+
+## «Contexto 38 % · turno 4»; cada parte solo si hay dato.
+static func context_text(used: int, total: int, turns: int) -> String:
+	var parts: PackedStringArray = []
+	if total > 0:
+		parts.append(I18n.t("Context %d %%") % int(float(used) / float(total) * 100.0))
+	if turns > 0:
+		parts.append(I18n.t("turn %d") % turns)
+	return " · ".join(parts)
+
+
 func _refresh_title() -> void:
 	_title_label.text = _model.title if not _model.title.is_empty() else (I18n.t("New session") if not _model.session_id.is_empty() else "")
 	HoverTooltip.set_text(_title_label, _title_label.text)
@@ -1497,7 +1619,10 @@ func _refresh_empty_state() -> void:
 		title.remove_theme_font_size_override(&"font_size")
 	# Sin sesión, el nombre del agente; la línea de comando (un dato técnico que en un dock angosto
 	# ocupaba tres líneas) queda en el tooltip (m12-45).
-	_empty_command.text = I18n.t("The agent sees and changes the project with the editor tools. You can add others later in Settings → Agents.") if first_run else profile.display_name if profile else ""
+	# Fuera del editor (la app aparte, m20-11) las tools del editor están solo si está abierto en la carpeta.
+	var how := I18n.t("The agent sees and changes the project with the editor tools. You can add others later in Settings → Agents.") if AgentTheme.has_editor() \
+		else I18n.t("The agent works on the project folder with its own tools, and with the Godot editor's tools when the editor is open on it. You can add others later in Settings → Agents.")
+	_empty_command.text = how if first_run else profile.display_name if profile else ""
 	_empty_command.tooltip_text = profile.command_line() if profile and not first_run else ""
 	_empty_command.mouse_filter = Control.MOUSE_FILTER_PASS if not _empty_command.tooltip_text.is_empty() else Control.MOUSE_FILTER_IGNORE
 	for label: Label in [title, _empty_command]:
@@ -1518,8 +1643,10 @@ func _refresh_empty_state() -> void:
 
 ## El texto del dock sin sesión (m12-59): qué hace el harness, el modo elegido con lo que permite, y
 ## cómo empezar.
-static func empty_hint(mode: String, mode_rules: String) -> String:
-	var lines: PackedStringArray = [I18n.t("The agent works on this project from the editor: it reads and changes scenes, scripts and settings, runs the game and looks at the errors.")]
+static func empty_hint(mode: String, mode_rules: String, in_editor := AgentTheme.has_editor()) -> String:
+	# Fuera del editor (la app aparte) las tools del editor están solo si hay uno abierto en la carpeta.
+	var lines: PackedStringArray = [I18n.t("The agent works on this project from the editor: it reads and changes scenes, scripts and settings, runs the game and looks at the errors.") if in_editor
+		else I18n.t("The agent works on the project folder: it reads and changes files with its own tools, and scenes, settings and the game with the editor's tools while the editor is open on it.")]
 	lines.append(I18n.t("Mode %s: %s") % [mode, mode_rules] if not mode_rules.is_empty() else I18n.t("Mode %s.") % mode)
 	lines.append(I18n.t("Write what you want in the box below to start, or press the button."))
 	return "\n\n".join(lines)
@@ -1600,7 +1727,10 @@ func _warn_api_key(profile: AgentProfile) -> void:
 
 
 ## Sesiones de este proyecto, la más reciente primero (spec §11 y session/list de m11-16).
-func _show_history_menu() -> void:
+## El historial de sesiones, abierto debajo de `anchor` (la cabecera de la app, m21-08) o del botón del dock.
+func show_history_menu(anchor: Control = null) -> void:
+	if anchor == null:
+		anchor = _history_button
 	_history_menu.clear()
 	_history_delete_menu.clear()
 	var local_items: Array[Dictionary] = _controller.history.list(_controller.cwd) if _controller.history else []
@@ -1629,7 +1759,7 @@ func _show_history_menu() -> void:
 	if _history_delete_menu.item_count > 0:
 		_history_menu.add_separator()
 		_history_menu.add_submenu_node_item(I18n.t("Delete session"), _history_delete_menu)
-	var below: Vector2 = _history_button.get_screen_position() + Vector2(0, _history_button.size.y)
+	var below: Vector2 = anchor.get_screen_position() + Vector2(0, anchor.size.y)
 	_history_menu.popup(Rect2i(Vector2i(below), Vector2i.ZERO))
 
 
@@ -2208,7 +2338,7 @@ func _open_path(path: String, line: int) -> void:
 		return
 	if EditorContext.open_location(absolute, line):
 		return
-	if FileAccess.file_exists(absolute):
+	if FileAccess.file_exists(absolute) or DirAccess.dir_exists_absolute(absolute):  # una carpeta (data/, ui/), en el gestor de archivos
 		OS.shell_open(absolute)
 		return
 	_model.add_notice(I18n.t("Could not open %s.") % path, ChatEntry.NoticeLevel.WARNING)
@@ -2220,7 +2350,7 @@ static func _absolute_path(path: String) -> String:
 	if path.begins_with("res://"):
 		absolute = ProjectSettings.globalize_path(path)
 	elif not path.is_absolute_path():
-		absolute = ProjectSettings.globalize_path("res://").path_join(path.trim_prefix("./"))
+		absolute = EditorContext.project_path().path_join(path.trim_prefix("./"))
 	return absolute.simplify_path()
 
 
@@ -2327,18 +2457,18 @@ func _on_add_context_pressed() -> void:
 		_add_context_menu.id_pressed.connect(_on_add_context_selected)
 		add_child(_add_context_menu)
 	_add_context_menu.clear()
-	var script := EditorInterface.get_script_editor().get_current_script()
+	var script: Script = AgentTheme.editor().get_script_editor().get_current_script() if AgentTheme.has_editor() else null
 	if script and not script.resource_path.is_empty():
 		_add_context_menu.add_item(I18n.t("Current script: %s") % script.resource_path.get_file(), ADD_CONTEXT_SCRIPT)
 	_add_context_menu.add_item(I18n.t("File…"), ADD_CONTEXT_FILE)
 	_add_context_menu.add_item(I18n.t("Viewport screenshot"), ADD_CONTEXT_SCREENSHOT)
 	_add_context_menu.add_item(I18n.t("Game screenshot"), ADD_CONTEXT_GAME)
-	if not EditorInterface.is_playing_scene():
+	if not AgentTheme.has_editor() or not AgentTheme.editor().is_playing_scene():
 		_add_context_menu.set_item_disabled(-1, true)
 		_add_context_menu.set_item_tooltip(-1, I18n.t("No game is running."))
 	_add_context_menu.add_item(I18n.t("Point at something in the game…"), ADD_CONTEXT_POINT)
 	_add_context_menu.set_item_tooltip(-1, I18n.t("Opens the game capture: click on a node and it goes to the message as @path, with the capture marked."))
-	if not EditorInterface.is_playing_scene():
+	if not AgentTheme.has_editor() or not AgentTheme.editor().is_playing_scene():
 		_add_context_menu.set_item_disabled(-1, true)
 		_add_context_menu.set_item_tooltip(-1, I18n.t("No game is running."))
 	_add_context_menu.reset_size()
@@ -2348,18 +2478,18 @@ func _on_add_context_pressed() -> void:
 func _on_add_context_selected(id: int) -> void:
 	match id:
 		ADD_CONTEXT_SCRIPT:
-			var script := EditorInterface.get_script_editor().get_current_script()
+			var script: Script = AgentTheme.editor().get_script_editor().get_current_script() if AgentTheme.has_editor() else null
 			if script:
 				add_context_files([script.resource_path])
 		ADD_CONTEXT_FILE:
 			if _file_dialog == null:
-				_file_dialog = EditorFileDialog.new()
-				_file_dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_FILES
+				_file_dialog = AgentTheme.file_dialog()
+				_file_dialog.set(&"file_mode", FileDialog.FILE_MODE_OPEN_FILES)
 				# Cualquier carpeta (m17-21): arranca en el proyecto y después recuerda la última.
-				_file_dialog.access = EditorFileDialog.ACCESS_FILESYSTEM
-				_file_dialog.current_dir = ProjectSettings.globalize_path("res://")
+				_file_dialog.set(&"access", FileDialog.ACCESS_FILESYSTEM)
+				_file_dialog.set(&"current_dir", EditorContext.project_path())
 				_file_dialog.title = I18n.t("Add to the context")
-				_file_dialog.files_selected.connect(add_context_files)
+				_file_dialog.connect(&"files_selected", add_context_files)
 				add_child(_file_dialog)
 			_file_dialog.popup_centered_ratio(0.6)
 		ADD_CONTEXT_SCREENSHOT:
@@ -2603,7 +2733,7 @@ func request_handoff(goal: String = "") -> void:
 		handoff.title = _model.title
 	handoff.session_id = session_id
 	handoff.text = Handoff.composer_text(handoff.title, goal, handoff.summary)
-	handoff["path"] = Handoff.save(ProjectSettings.globalize_path("res://"), handoff)
+	handoff["path"] = Handoff.save(EditorContext.project_path(), handoff)
 	_handoff_running = false
 	_refresh_handoff_banner()
 	if handoff.summary.is_empty():
@@ -2734,7 +2864,7 @@ func _refresh_handoff_offer(available: bool) -> void:
 		return
 	_handoff_items.clear()
 	if available:
-		_handoff_items = Handoff.list(ProjectSettings.globalize_path("res://"))
+		_handoff_items = Handoff.list(EditorContext.project_path())
 	_handoff_offer.visible = not _handoff_items.is_empty()
 	if _handoff_items.is_empty():
 		return
@@ -2785,7 +2915,7 @@ func instructions_file() -> String:
 		kind = _controller.adapter.kind
 	elif selected_profile():
 		kind = AgentAdapters.for_profile(selected_profile().command, selected_profile().args, selected_profile().id).kind
-	return InstructionsTab.default_file_for(kind, ProjectSettings.globalize_path("res://"))
+	return InstructionsTab.default_file_for(kind, EditorContext.project_path())
 
 
 ## La nota que recibe la sesión en curso con su próximo prompt: el archivo no se relee hasta la
@@ -2800,12 +2930,12 @@ func remember(value: String) -> void:
 		_model.add_notice(I18n.t("Write what to remember after the command, e.g. /remember The player scene is res://player/player.tscn"), ChatEntry.NoticeLevel.WARNING)
 		return
 	var file := instructions_file()
-	var error := ProjectMemory.remember(ProjectSettings.globalize_path("res://").path_join(file), line)
+	var error := ProjectMemory.remember(EditorContext.project_path().path_join(file), line)
 	if not error.is_empty():
 		_model.add_notice(I18n.t("Could not save it in %s: %s") % [file, error], ChatEntry.NoticeLevel.ERROR)
 		return
-	if Engine.is_editor_hint() and EditorInterface.get_resource_filesystem():
-		EditorInterface.get_resource_filesystem().update_file("res://" + file)
+	if Engine.is_editor_hint() and AgentTheme.editor().get_resource_filesystem():
+		AgentTheme.editor().get_resource_filesystem().update_file("res://" + file)
 	var note := remember_note(file, line, UntrustedText.new_nonce())
 	_controller.note_for_agent(note)
 	var entry := _model.add_notice(I18n.t("Saved in %s: «%s». Agents read it from their next session; this one gets it with your next message.") % [file, line])
@@ -2820,7 +2950,7 @@ func remember(value: String) -> void:
 func _undo_remember(data: Variant) -> void:
 	if not data is Dictionary:
 		return
-	var error := ProjectMemory.forget(ProjectSettings.globalize_path("res://").path_join(str(data.file)), str(data.line))
+	var error := ProjectMemory.forget(EditorContext.project_path().path_join(str(data.file)), str(data.line))
 	_controller.drop_note_for_agent(str(data.get("note", "")))
 	if error.is_empty():
 		_model.add_notice(I18n.t("Removed from %s: «%s».") % [data.file, data.line])

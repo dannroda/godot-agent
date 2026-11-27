@@ -197,7 +197,7 @@ func _check_long_name(dock: Control) -> void:
 		# Con la escala del editor en 1,33 (la de un editor sin ajustes, la del CI) a 320 px ni cortando
 		# el modelo entra: el modo también se corta, y su tooltip dice el nombre entero.
 		var mode_button: OptionButton = composer.get(&"_mode_button")
-		if int(composer.get(&"_compact_level")) >= 7:
+		if int(composer.get(&"_compact_level")) >= 8:
 			_expect(mode_button.tooltip_text.begins_with("Level design (Build)"), "cortado, el tooltip del modo empieza con su nombre · %s" % mode_button.tooltip_text.left(80))
 	await LayoutCheck.set_dock_width(guard, start_width)
 	composer.call(&"set_usage", 0, 0)

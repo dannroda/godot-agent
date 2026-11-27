@@ -31,7 +31,7 @@ const PermissionRequest := preload("permission_request.gd")
 const ChatEntry := preload("chat_entry.gd")
 const ToolCall := preload("tool_call.gd")
 const PlaytestMemory := preload("../review/playtest_memory.gd")
-const RunTools := preload("../mcp/tools/run_tools.gd")
+const PlaytestState := preload("playtest_state.gd")
 const AgentLog := preload("../core/agent_log.gd")
 const AgentProfile := preload("../core/agent_profile.gd")
 const ModeModels := preload("../core/mode_models.gd")
@@ -715,17 +715,17 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 
 	var playtest_minutes := ReviewStore.playtest_minutes(text.strip_edges())
 	if playtest_minutes > 0:
-		RunTools.set_playtest_deadline(Time.get_ticks_msec() + playtest_minutes * 60000)
+		PlaytestState.set_deadline(Time.get_ticks_msec() + playtest_minutes * 60000)
 	_playtest_loop = {}
 	if playtest_turn:
-		RunTools.set_playtest_loop_handler(_on_playtest_loop)
+		PlaytestState.set_loop_handler(_on_playtest_loop)
 	_prompt_request_id = client.next_request_id()
 	var result := await client.request("session/prompt", {"sessionId": model.session_id, "prompt": blocks})
 	_prompt_request_id = -1
 	if playtest_minutes > 0:
-		RunTools.set_playtest_deadline(0)
+		PlaytestState.set_deadline(0)
 	if playtest_turn:
-		RunTools.set_playtest_loop_handler(Callable())
+		PlaytestState.set_loop_handler(Callable())
 	if playtest_turn:
 		_sync_agent_mode()
 	var turn_text := agent_text_since(first_new_entry)

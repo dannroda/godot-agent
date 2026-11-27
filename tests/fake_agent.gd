@@ -61,6 +61,8 @@ var _inbox: Array[String] = []
 var _inbox_mutex := Mutex.new()
 var _reader: Thread
 var _session_id: String = ""
+## El cwd de session/new, para "{cwd}" en el guion (m20-09: la app aparte abre otra carpeta).
+var _cwd: String = ""
 var _turn_index: int = 0
 var _qa_turn_index: int = 0
 var _qa_sessions: Dictionary = {}
@@ -169,6 +171,7 @@ func _handle_line(line: String) -> void:
 				_send({"jsonrpc": "2.0", "id": id, "error": {"code": -32000, "message": "Authentication required"}})
 				return
 			_session_id = "fake-session-%d" % (Time.get_ticks_usec() % 100000)
+			_cwd = str(message.get("params", {}).get("cwd", ""))
 			var result := {"sessionId": _session_id}
 			result.merge(_scenario.get("session", {}), true)
 			printerr("fake_agent: session/new %s" % JSON.stringify(message.get("params", {})))
@@ -315,10 +318,10 @@ func _advance_turn() -> void:
 		_finish_prompt("end_turn")
 
 
-## Reemplaza "{project}" por la ruta absoluta del proyecto en todos los strings.
+## Reemplaza "{project}" por la ruta absoluta del proyecto y "{cwd}" por el cwd de la sesión en todos los strings.
 func _expand(value: Variant) -> Variant:
 	if value is String:
-		return value.replace("{project}", ProjectSettings.globalize_path("res://").trim_suffix("/"))
+		return value.replace("{project}", ProjectSettings.globalize_path("res://").trim_suffix("/")).replace("{cwd}", _cwd)
 	if value is Array:
 		return value.map(_expand)
 	if value is Dictionary:

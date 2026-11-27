@@ -62,6 +62,7 @@ const GithubReviews := preload("core/github_reviews.gd")
 const InlineEditMenu := preload("editor/inline_edit_menu.gd")
 const AskAgentMenu := preload("editor/ask_agent_menu.gd")
 const McpServer := preload("mcp/mcp_server.gd")
+const McpPublication := preload("mcp/mcp_publication.gd")
 const ToolRegistry := preload("mcp/tool_registry.gd")
 const ModeModels := preload("core/mode_models.gd")
 const AgentAccounts := preload("session/agents/agent_accounts.gd")
@@ -425,6 +426,7 @@ func _enter_tree() -> void:
 	log_panel.setup(_log)
 	log_panel.diagnostic_report = func() -> Dictionary: return _diagnostic_report(_tabs.active_id() if _tabs else PRIMARY_SESSION)
 	_tabs = SessionTabs.new()
+	_tabs.accent = _settings.accent_color()
 	_tabs.name = dock.name  # con la API vieja de docks, el título de la pestaña es el nombre del nodo
 	_tabs.add_session(PRIMARY_SESSION, dock, _model, I18n.t("Session 1"))
 	_tabs.notify_outside_enabled = _settings.notify_when_unfocused
@@ -551,6 +553,7 @@ func _exit_tree() -> void:
 			_controller.history.flush()  # la última escritura del historial va en un worker
 		_controller = null
 	if _mcp_server:
+		McpPublication.remove(EditorContext.project_path())
 		_log.remove_secret(_mcp_server.token)
 		_mcp_server.stop()
 		_mcp_server.queue_free()
@@ -1156,6 +1159,10 @@ func _start_mcp_server() -> void:
 	registry.max_image_side = _project_config.max_image_side
 	registry.compact = _project_config.compact_tools
 	registry.session_authorizer = func(caller: String, group: String, title: String, description: String) -> bool:
+		# La app aparte (m20-06) autoriza cada llamada con el modo y la tarjeta de su pestaña antes de
+		# mandarla; su token no lo ve ningún agente.
+		if caller == McpPublication.APP_CALLER:
+			return true
 		var controller := _controller_of(_session_of(caller))
 		return controller != null and await controller.authorize(group, title, description, {}, _project_config.permission_timeout_s)
 	registry.guard = _guard_tool
@@ -1297,9 +1304,15 @@ func _start_mcp_server() -> void:
 	_mcp_server = McpServer.new()
 	_mcp_server.registry = registry
 	_mcp_server.agent_log = _log
+	_mcp_server.describer = func(caller: String, tool_name: String, args: Dictionary) -> Dictionary:
+		return registry.describe(tool_name, args) if caller == McpPublication.APP_CALLER else {}
 	add_child(_mcp_server)
 	if _mcp_server.start(_settings.mcp_port()) == OK:
 		_log.add_secret(_mcp_server.token)
+		var app_token := _mcp_server.session_token(McpPublication.APP_CALLER)
+		_log.add_secret(app_token)
+		if McpPublication.publish(EditorContext.project_path(), _mcp_server.url(), app_token) != OK:
+			_log.add(AgentLog.CH_MCP, "could not publish the MCP for the separate window")
 
 
 ## Entradas `mcpServers` para session/new: la del addon (HTTP si el agente lo soporta; si no, el

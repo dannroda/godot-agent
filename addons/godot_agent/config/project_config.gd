@@ -3,6 +3,7 @@ extends Resource
 ## Configuración por proyecto (D5): matriz de permisos y presupuestos de One-shot.
 ## Vive en res://addons/godot_agent/config/project_config.tres (excluido del export con el addon).
 
+const ProjectDirs := preload("../core/project_dirs.gd")
 const PATH := "res://addons/godot_agent/config/project_config.tres"
 const ShellRules := preload("../session/shell_rules.gd")
 
@@ -85,12 +86,13 @@ const ShellRules := preload("../session/shell_rules.gd")
 
 ## Carga el recurso del proyecto o devuelve uno nuevo con los defaults (sin guardarlo).
 static func load_or_default() -> Resource:
-	if ResourceLoader.exists(PATH):
-		var loaded := ResourceLoader.load(PATH, "", ResourceLoader.CACHE_MODE_IGNORE)
+	var path := ProjectDirs.to_fs(PATH)  # fuera del editor, la del proyecto elegido (m20-13)
+	if ResourceLoader.exists(path):
+		var loaded := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
 		if loaded and loaded.get_script() == load("res://addons/godot_agent/config/project_config.gd"):
 			return loaded
 	return new()
 
 
 func save_to_project() -> Error:
-	return ResourceSaver.save(self, PATH)
+	return ResourceSaver.save(self, ProjectDirs.to_fs(PATH))

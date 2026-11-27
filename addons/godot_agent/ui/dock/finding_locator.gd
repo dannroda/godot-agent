@@ -4,28 +4,30 @@ extends RefCounted
 ## nombre o el más cercano a donde pasó, lo selecciona y encuadra la cámara.
 ## Basado en _show_in_level de dock.gd de Autopilot (ramenvr/autopilot, Apache 2.0).
 
+const AgentTheme := preload("res://addons/godot_agent/ui/agent_theme.gd")
+
 const I18n := preload("../../core/i18n.gd")
 
 
 ## Devuelve qué mostró, o el problema (para el aviso del chat): [ok, texto].
 static func show(finding: Dictionary) -> Array:
 	var scene := str(finding.get("scene", ""))
-	var root := EditorInterface.get_edited_scene_root()
+	var root: Node = AgentTheme.editor().get_edited_scene_root()
 	if not scene.is_empty() and (root == null or root.scene_file_path != scene):
-		EditorInterface.open_scene_from_path(scene)
-		await EditorInterface.get_base_control().get_tree().process_frame
-		root = EditorInterface.get_edited_scene_root()
+		AgentTheme.editor().open_scene_from_path(scene)
+		await AgentTheme.editor().get_base_control().get_tree().process_frame
+		root = AgentTheme.editor().get_edited_scene_root()
 	if root == null:
 		return [false, I18n.t("Open the scene to show this finding in it.")]
 	var target := nearest_node(root, str(finding.get("node", "")), finding.get("where", []))
 	if target == null:
 		return [false, I18n.t("Nothing in the open scene matches this finding.")]
-	var selection := EditorInterface.get_selection()
+	var selection = AgentTheme.editor().get_selection()
 	selection.clear()
 	selection.add_node(target)
-	EditorInterface.edit_node(target)
-	EditorInterface.set_main_screen_editor("3D" if target is Node3D else "2D")
-	var tree := EditorInterface.get_base_control().get_tree()
+	AgentTheme.editor().edit_node(target)
+	AgentTheme.editor().set_main_screen_editor("3D" if target is Node3D else "2D")
+	var tree: SceneTree = AgentTheme.editor().get_base_control().get_tree()
 	await tree.process_frame
 	await tree.process_frame
 	_frame_selection(target is Node3D)
@@ -66,12 +68,12 @@ static func nearest_node(root: Node, node_name: String, where: Variant) -> Node:
 
 ## Como View > Focus Selection: el ítem del menú con ese atajo, sea cual sea el idioma del editor.
 static func _frame_selection(is_3d: bool) -> void:
-	var settings := EditorInterface.get_editor_settings()
+	var settings = AgentTheme.editor().get_editor_settings()
 	var key := "spatial_editor/focus_selection" if is_3d else "canvas_item_editor/frame_selection"
 	if not settings.has_shortcut(key):
 		return
-	var shortcut := settings.get_shortcut(key)
-	var node: Node = EditorInterface.get_editor_viewport_3d(0) if is_3d else EditorInterface.get_editor_viewport_2d()
+	var shortcut: Shortcut = settings.get_shortcut(key)
+	var node: Node = AgentTheme.editor().get_editor_viewport_3d(0) if is_3d else AgentTheme.editor().get_editor_viewport_2d()
 	var owner_class := "Node3DEditorViewport" if is_3d else "CanvasItemEditor"
 	while node != null and node.get_class() != owner_class:
 		node = node.get_parent()

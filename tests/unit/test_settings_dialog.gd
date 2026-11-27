@@ -59,7 +59,7 @@ func test_loads_and_validates() -> void:
 	(dialog.get(&"_pause_spin") as SpinBox).value = 50
 	(dialog.get(&"_warn_spin") as SpinBox).value = 80
 	assert_eq(dialog.validate().get("section"), SettingsDialog.SettingsSection.ONESHOT, "pausa por debajo del aviso")
-	(dialog.get(&"_pause_check") as CheckBox).button_pressed = false
+	(dialog.get(&"_pause_check") as CheckButton).button_pressed = false
 	assert_true(dialog.validate().is_empty(), "sin pausa no importa el umbral")
 
 	(dialog.get(&"_roots_edit") as TextEdit).text = "/tmp/assets\nrelativa/no"
@@ -238,7 +238,7 @@ func test_on_open_setting() -> void:
 func test_run_error_setting() -> void:
 	var dialog := _dialog()
 	var settings: HarnessSettings = dialog.get(&"_settings")
-	var check: CheckBox = dialog.get(&"_run_error_check")
+	var check: CheckButton = dialog.get(&"_run_error_check")
 	assert_true(settings.offer_fix_on_run_error(), "por defecto ofrece arreglar")
 	assert_true(check.button_pressed, "la casilla lo refleja")
 	settings.set_value(HarnessSettings.KEY_RUN_ERROR_FIX, false)
@@ -275,7 +275,7 @@ func test_matrix_cells_and_column_reset() -> void:
 	var same: OptionButton = matrix[PermissionPolicy.GROUP_READ][SessionModel.HarnessMode.BUILD]
 	assert_true(changed.has_theme_stylebox_override(&"normal") and not changed.tooltip_text.is_empty(), "la cambiada se resalta y dice el default")
 	assert_false(same.has_theme_stylebox_override(&"normal"), "la de siempre, no")
-	assert_true(changed.get_item_text(changed.selected).begins_with("✓"), "con su ícono")
+	assert_true(changed.get_item_icon(changed.selected) != null, "con su punto de color")
 	dialog.call(&"_reset_matrix_column", SessionModel.HarnessMode.BUILD)
 	assert_true(dialog.matrix_overrides().is_empty(), "la columna vuelve a la spec")
 	assert_false(changed.has_theme_stylebox_override(&"normal"), "y deja de resaltarse")
@@ -294,21 +294,22 @@ func test_completion_advanced_folded() -> void:
 	page.free()
 
 
-## m12-26: la sección con cambios sin guardar lleva «•»; al volver al valor de antes se va.
+## m12-26: la sección con cambios sin guardar lleva un punto; al volver al valor de antes se va.
 func test_dirty_sections() -> void:
 	var dialog := _dialog()
 	var nav: ItemList = dialog.get(&"_nav")
 	dialog.call(&"_snapshot_sections")
 	var interface := SettingsDialog.SettingsSection.GENERAL
-	assert_false(nav.get_item_text(interface).begins_with("•"), "recién abierto, sin marcas")
-	var update_check: CheckBox = dialog.get(&"_update_check")
+	assert_true(nav.get_item_tooltip(interface).is_empty(), "recién abierto, sin marcas")
+	var update_check: CheckButton = dialog.get(&"_update_check")
 	update_check.button_pressed = not update_check.button_pressed
 	dialog.call(&"_refresh_dirty")
-	assert_true(nav.get_item_text(interface).begins_with("•"), "Interfaz cambió")
-	assert_false(nav.get_item_text(SettingsDialog.SettingsSection.AGENTS).begins_with("•"), "Agentes no")
+	assert_false(nav.get_item_tooltip(interface).is_empty(), "Interfaz cambió")
+	assert_true(nav.get_item_tooltip(SettingsDialog.SettingsSection.AGENTS).is_empty(), "Agentes no")
+	assert_true(not (dialog.get(&"_changes_label") as Label).text.is_empty(), "el pie dice qué sección tiene cambios (m21-17)")
 	update_check.button_pressed = not update_check.button_pressed
 	dialog.call(&"_refresh_dirty")
-	assert_false(nav.get_item_text(interface).begins_with("•"), "de vuelta como estaba")
+	assert_true(nav.get_item_tooltip(interface).is_empty(), "de vuelta como estaba")
 	dialog.free()
 
 
@@ -334,4 +335,27 @@ func test_mode_models() -> void:
 	dialog.call(&"_edit_profile", 1)
 	var hints := box.get_children().filter(func(c: Node) -> bool: return c is Label and not c.is_queued_for_deletion())
 	assert_true(hints.size() == 1 and (hints[0] as Label).text.contains("composer"), "sin nada recordado, explica cómo se elige")
+	dialog.free()
+
+
+## m21-23: buscar un ajuste deja a la vista lo que coincide y apaga las secciones sin nada.
+func test_search() -> void:
+	var dialog := _dialog()
+	var nav: ItemList = dialog.get(&"_nav")
+	var update_check: CheckButton = dialog.get(&"_update_check")
+	var hidden_before: Array = dialog.find_children("*", "Control", true, false).filter(func(c: Control) -> bool: return not c.visible)
+	var found: int = dialog.filter_settings(update_check.text.substr(0, 12))
+	assert_true(found >= 1 and update_check.visible, "la fila que coincide queda")
+	assert_false((dialog.get(&"_timeout_spin") as Control).get_parent().visible, "una que no, se oculta")
+	assert_true(nav.is_item_disabled(SettingsDialog.SettingsSection.PERMISSIONS), "Permisos sin nada queda apagada")
+	assert_eq(dialog.filter_settings("zzzz-nada"), 0, "nada coincide")
+	dialog.filter_settings("")
+	assert_true((dialog.get(&"_timeout_spin") as Control).get_parent().visible, "vacío, vuelve todo")
+	assert_false(nav.is_item_disabled(SettingsDialog.SettingsSection.PERMISSIONS), "y las secciones")
+	var hidden_after: Array = dialog.find_children("*", "Control", true, false).filter(func(c: Control) -> bool: return not c.visible)
+	assert_eq(hidden_after.size(), hidden_before.size(), "lo que estaba oculto sigue igual")
+	dialog.filter_settings("zzzz-nada")
+	(dialog.get(&"_search") as LineEdit).text = "zzzz-nada"
+	dialog.call(&"_load")  # lo que hace open() antes de mostrarse
+	assert_true((dialog.get(&"_search") as LineEdit).text.is_empty() and not nav.is_item_disabled(SettingsDialog.SettingsSection.AGENTS), "al reabrir, sin la búsqueda de antes")
 	dialog.free()

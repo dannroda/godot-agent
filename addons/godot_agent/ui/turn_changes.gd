@@ -19,6 +19,7 @@ const TurnReport := preload("../session/turn_report.gd")
 const DiffDialog := preload("diff_dialog.gd")
 const TurnChangesDialog := preload("turn_changes_dialog.gd")
 const EditorContext := preload("editor_context.gd")
+const AgentTheme := preload("agent_theme.gd")
 const I18n := preload("../core/i18n.gd")
 const SceneRevert := preload("../core/scene_revert.gd")
 
@@ -262,7 +263,7 @@ func _snapshots_of(session: String) -> TurnSnapshots:
 	return controller.snapshots if controller and controller.snapshots else project_snapshots
 
 
-## Reporte del turno (m11-06) en res://.godot_agent/reports/<fecha>/, y se abre su carpeta.
+## Reporte del turno (m11-06) en <proyecto>/.godot_agent/reports/<fecha>/, y se abre su carpeta.
 func save_report(data: Dictionary) -> void:
 	var model: SessionModel = model_of.call(str(data.get("session", primary_session)))
 	if model == null:
@@ -270,9 +271,10 @@ func save_report(data: Dictionary) -> void:
 	var collected := TurnReport.collect(model, int(data.get("first_entry", 0)))
 	var now := Time.get_datetime_string_from_system()
 	var project := str(ProjectSettings.get_setting("application/config/name", EditorContext.project_path().get_file()))
-	var path := TurnReport.write(TurnReport.DIR, now.replace(":", "-").replace("T", "_"), "Turn report · %s · %s" % [project, now.replace("T", " ")], collected, data.get("files", []))
+	var reports := EditorContext.project_path().path_join(TurnReport.DIR.trim_prefix("res://"))  # la carpeta elegida, fuera del editor
+	var path := TurnReport.write(reports, now.replace(":", "-").replace("T", "_"), "Turn report · %s · %s" % [project, now.replace("T", " ")], collected, data.get("files", []))
 	if path.is_empty():
-		model.add_notice(I18n.t("Could not save the report in %s.") % TurnReport.DIR, ChatEntry.NoticeLevel.ERROR)
+		model.add_notice(I18n.t("Could not save the report in %s.") % reports, ChatEntry.NoticeLevel.ERROR)
 		return
 	model.add_notice(I18n.t("Report saved in %s.") % path.get_base_dir())
 	OS.shell_show_in_file_manager(ProjectSettings.globalize_path(path))
@@ -287,15 +289,44 @@ func confirm_restore(data: Dictionary) -> void:
 	var confirm := ConfirmationDialog.new()
 	confirm.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	confirm.title = I18n.t("Go back to before this turn")
-	confirm.dialog_text = I18n.t("The project's files go back to how they were before this turn, including what changed after it (by the agent or by you). Files .gitignore leaves out are not touched. You can undo it from the chat.")
+	confirm.dialog_text = I18n.t("This turn's files go back to how they were before it; the rest of the project is not touched. You can undo it from the chat.")
+	var later := await changed_after(data)
+	if not later.is_empty():
+		confirm.dialog_text += "\n\n" + I18n.t("Changed after this turn (by another tab, the agent or you), those changes are lost too: %s") % ", ".join(later)
 	confirm.ok_button_text = I18n.t("Go back")
 	confirm.cancel_button_text = I18n.t("Cancel")
 	confirm.confirmed.connect(restore.bind(data))
 	confirm.visibility_changed.connect(func() -> void:
 		if not confirm.visible:
 			EditorWindows.free_later.call_deferred(confirm))
-	EditorInterface.get_base_control().add_child(confirm)
+	# Fuera del editor (la app aparte, m20-09), al lado del diálogo de cambios.
+	(AgentTheme.editor().get_base_control() if AgentTheme.has_editor() else dialog.get_parent()).add_child(confirm)
 	confirm.popup_centered()
+
+
+## Las rutas que cambió el turno (relativas al proyecto); vacío, todo el proyecto (datos viejos sin files).
+static func turn_paths(data: Dictionary) -> PackedStringArray:
+	var paths: PackedStringArray = []
+	for file: Variant in data.get("files", []):
+		if file is Dictionary:
+			paths.append(str(file.path))
+	return paths
+
+
+## Cuáles de los archivos del turno cambiaron después de que terminó: deshacerlo se lleva eso también.
+## shortcut: no ve lo que otra pestaña escribió en el mismo archivo durante el turno (las reservas de
+## archivos lo evitan casi siempre); si pasa, guardar quién escribió qué en el turno.
+func changed_after(data: Dictionary) -> PackedStringArray:
+	var paths := turn_paths(data)
+	var snapshots := _snapshots_of(str(data.get("session", primary_session)))
+	if paths.is_empty() or str(data.get("end", "")).is_empty() or snapshots == null:
+		return PackedStringArray()
+	var now: Dictionary = await snapshots.peek(str(data.get("session", primary_session)), str(data.end))
+	var later: PackedStringArray = []
+	for file: Dictionary in now.get("files", []):
+		if file.path in paths:
+			later.append(str(file.path))
+	return later
 
 
 ## Deja los archivos (todos o `paths`) como en el snapshot `data.start`, recarga lo abierto, avisa en
@@ -304,6 +335,9 @@ func restore(data: Dictionary, paths: PackedStringArray = []) -> void:
 	var session := str(data.get("session", primary_session))
 	var model: SessionModel = model_of.call(session)
 	var snapshots := _snapshots_of(session)
+	# Solo lo del turno (m20-10): otra pestaña sobre la misma carpeta pudo cambiar otros archivos después.
+	if paths.is_empty():
+		paths = turn_paths(data)
 	var result: Dictionary = await snapshots.restore(session, str(data.start), paths)
 	if result.is_empty():
 		if model:
@@ -317,7 +351,7 @@ func restore(data: Dictionary, paths: PackedStringArray = []) -> void:
 	if changed.is_empty() or model == null:
 		return
 	var names := ", ".join(changed)
-	var undo := {"session": session, "start": result.before, "undo": true}
+	var undo := {"session": session, "start": result.before, "undo": true, "files": Array(changed).map(func(path: String) -> Dictionary: return {"path": path})}
 	model.add_notice(I18n.t("Went back: %s") % names, ChatEntry.NoticeLevel.INFO, [{"id": SessionController.ACTION_TURN_RESTORE, "label": I18n.t("Undo"), "data": undo}])
 	var controller: SessionController = controller_of.call(session)
 	if controller and not data.get("undo", false):

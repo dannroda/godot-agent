@@ -40,7 +40,10 @@ class McpConnection:
 	var last_activity_msec: int = 0
 
 
-var registry: ToolRegistry
+## Un ToolRegistry, o lo que tenga list(), has_tool() y call_tool() (el puente de la app aparte, m20-06).
+var registry: Object
+## (caller, tool_name, args) -> Dictionary: `godot_agent/describe` para quien puede pedirlo; {} si no.
+var describer: Callable
 var agent_log: AgentLog
 ## Token Bearer: se genera en cada start().
 var token: String = ""
@@ -381,7 +384,10 @@ func _dispatch(message: Variant, headers: Dictionary, session_id: String, caller
 		"ping":
 			return _rpc_result(id, {})
 		"tools/list":
-			return _rpc_result(id, {"tools": registry.list() if registry else []})
+			return _rpc_result(id, {"tools": await registry.list() if registry else []})
+		"godot_agent/describe":
+			var described: Dictionary = describer.call(caller, str(params.get("name", "")), params.get("arguments") if params.get("arguments") is Dictionary else {}) if describer.is_valid() else {}
+			return _rpc_result(id, described) if not described.is_empty() else _rpc_error(id, -32601, "Unsupported method: %s" % method)
 		"tools/call":
 			if registry == null:
 				return _rpc_error(id, -32603, "No tool registry")

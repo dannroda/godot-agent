@@ -200,6 +200,25 @@ func write_targets(tool_name: String, args: Dictionary) -> Dictionary:
 	return {"declared": not tool.group in WRITE_GROUPS, "paths": PackedStringArray()}
 
 
+## Lo que hace falta para autorizar una llamada en otro proceso (la app aparte, m20-06): `{group, title,
+## description, targets}` (targets como write_targets(), para el modo del proyecto y los locks de la
+## pestaña), con godot.run abierto en su método; {} si la tool no existe.
+func describe(tool_name: String, args: Dictionary) -> Dictionary:
+	if tool_name == METHODS_TOOL and not _tools.has(METHODS_TOOL):
+		return {"group": PermissionPolicy.GROUP_READ, "title": "godot." + METHODS_TOOL, "description": "", "targets": {"declared": true, "paths": []}}
+	if tool_name == RUN_TOOL and not _tools.has(RUN_TOOL):
+		tool_name = str(args.get("method", ""))
+		args = args.get("params") if args.get("params") is Dictionary else {}
+	if not _tools.has(tool_name):
+		sync_project_tools()
+	var tool: McpTool = _tools.get(tool_name)
+	if tool == null:
+		return {}
+	var targets := write_targets(tool_name, args)
+	return {"group": tool.group_of(args), "title": "godot.%s" % tool.name, "description": tool.describe(args),
+		"targets": {"declared": targets.declared, "paths": Array(targets.paths)}}
+
+
 ## Grupo de permisos de una tool, o "" si no existe.
 func group_of(tool_name: String) -> String:
 	var tool: McpTool = _tools.get(tool_name)

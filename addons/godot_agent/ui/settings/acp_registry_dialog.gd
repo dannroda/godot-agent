@@ -32,8 +32,7 @@ func _init() -> void:
 	wrap_controls = false
 	min_size = Vector2i(AgentTheme.px(480), AgentTheme.px(400))
 	registry = AcpRegistry.new()
-	if Engine.is_editor_hint():
-		registry.install_root = EditorInterface.get_editor_paths().get_data_dir().path_join("godot_agent/agents")
+	registry.install_root = AcpRegistry.editor_data_dir().path_join("godot_agent/agents")
 	add_child(registry)
 	var page := VBoxContainer.new()
 	add_child(page)

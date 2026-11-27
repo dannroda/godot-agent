@@ -7,6 +7,7 @@ extends MarginContainer
 
 signal status_changed(text: String, color: Color)
 
+const ProjectDirs := preload("../../core/project_dirs.gd")
 const I18n := preload("../../core/i18n.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const ProjectFacts := preload("../../core/project_facts.gd")
@@ -245,7 +246,7 @@ static func default_file_for(kind: String, root_path: String) -> String:
 ## Vuelve a leer el archivo elegido (o el primero que corresponda).
 func refresh() -> void:
 	if project_path.is_empty():
-		project_path = ProjectSettings.globalize_path("res://")
+		project_path = ProjectDirs.globalize("res://")
 	if _current.is_empty():
 		_current = default_file_for(agent_kind, project_path)
 	_fill_options()

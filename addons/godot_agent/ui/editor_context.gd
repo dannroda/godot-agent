@@ -3,31 +3,40 @@ extends RefCounted
 ## Lo que la UI necesita leer del editor para armar el contexto de un prompt: escena abierta,
 ## selección, menciones (`@`), captura del viewport y saltar a un archivo/línea.
 
+const AgentTheme := preload("agent_theme.gd")
+
 const MAX_IMAGE_SIDE := 1280
 const MENTION_FILE_LIMIT := 3000
 const MENTION_EXTENSIONS: PackedStringArray = ["gd", "cs", "tscn", "tres", "gdshader", "cfg", "json", "md", "txt", "csv"]
 
 
+## La carpeta elegida en la app aparte (m20-03); vacía, la del proyecto abierto en el editor.
+## shortcut: una sola carpeta para toda la app; si hace falta una por pestaña, pasarla por el controller.
+static var project_root: String = ""
+
+
 static func project_path() -> String:
-	return ProjectSettings.globalize_path("res://").trim_suffix("/")
+	var root := project_root if not project_root.is_empty() else ProjectSettings.globalize_path("res://")
+	return root.simplify_path().trim_suffix("/")
 
 
 static func file_uri(res_path: String) -> String:
 	return "file://" + ProjectSettings.globalize_path(res_path)
 
 
+## Fuera del editor (la app aparte, m20) no hay escena abierta ni selección: null y listas vacías.
 static func scene_root() -> Node:
-	return EditorInterface.get_edited_scene_root()
+	return AgentTheme.editor().get_edited_scene_root() if AgentTheme.has_editor() else null
 
 
 ## El script abierto en el Script Editor, si está a la vista (m11-25: sus reglas por archivo).
 static func current_script_paths() -> PackedStringArray:
-	if not Engine.is_editor_hint():
+	if not AgentTheme.has_editor():
 		return PackedStringArray()
-	var editor := EditorInterface.get_script_editor()
+	var editor = AgentTheme.editor().get_script_editor()
 	if editor == null or not editor.is_visible_in_tree():
 		return PackedStringArray()
-	var script := editor.get_current_script()
+	var script: Script = editor.get_current_script()
 	return PackedStringArray([script.resource_path]) if script and script.resource_path.begins_with("res://") else PackedStringArray()
 
 
@@ -42,7 +51,7 @@ static func selected_node_paths() -> PackedStringArray:
 	var root := scene_root()
 	if root == null:
 		return paths
-	for node: Node in EditorInterface.get_selection().get_selected_nodes():
+	for node: Node in AgentTheme.editor().get_selection().get_selected_nodes():
 		if node == root or root.is_ancestor_of(node):
 			paths.append(String(root.get_path_to(node)))
 	return paths
@@ -51,7 +60,9 @@ static func selected_node_paths() -> PackedStringArray:
 static func selection_description() -> String:
 	var root := scene_root()
 	var parts: PackedStringArray = []
-	for node: Node in EditorInterface.get_selection().get_selected_nodes():
+	if root == null:
+		return ""
+	for node: Node in AgentTheme.editor().get_selection().get_selected_nodes():
 		if root and (node == root or root.is_ancestor_of(node)):
 			parts.append("%s (%s)" % [String(root.get_path_to(node)), node.get_class()])
 	return ", ".join(parts)
@@ -64,7 +75,10 @@ static func mention_options() -> Array[Dictionary]:
 	if root:
 		_collect_nodes(root, root, options)
 	var files: PackedStringArray = []
-	_collect_files(EditorInterface.get_resource_filesystem().get_filesystem(), files)
+	if AgentTheme.has_editor():
+		_collect_files(AgentTheme.editor().get_resource_filesystem().get_filesystem(), files)
+	else:
+		_collect_dir(project_path(), "", files)
 	for path: String in files:
 		options.append({"label": path, "insert": path})
 	return options
@@ -80,13 +94,27 @@ static func _collect_nodes(root: Node, node: Node, out: Array[Dictionary]) -> vo
 			_collect_nodes(root, child, out)
 
 
-static func _collect_files(dir: EditorFileSystemDirectory, out: PackedStringArray) -> void:
+## Fuera del editor: los archivos de la carpeta, con la ruta relativa a ella; sin carpetas ocultas
+## (.git, .godot) ni el addon, como el EditorFileSystem.
+static func _collect_dir(root: String, relative: String, out: PackedStringArray) -> void:
+	if out.size() >= MENTION_FILE_LIMIT or relative.begins_with("addons/godot_agent"):
+		return
+	var dir := root.path_join(relative)
+	for file: String in DirAccess.get_files_at(dir):
+		if file.get_extension() in MENTION_EXTENSIONS and out.size() < MENTION_FILE_LIMIT:
+			out.append(relative.path_join(file) if not relative.is_empty() else file)
+	for sub: String in DirAccess.get_directories_at(dir):
+		if not sub.begins_with("."):
+			_collect_dir(root, relative.path_join(sub) if not relative.is_empty() else sub, out)
+
+
+static func _collect_files(dir: Object, out: PackedStringArray) -> void:
 	if dir == null or out.size() >= MENTION_FILE_LIMIT:
 		return
 	if dir.get_path().begins_with("res://addons/godot_agent"):
 		return
 	for i in dir.get_file_count():
-		var path := dir.get_file_path(i)
+		var path: String = dir.get_file_path(i)
 		if path.get_extension() in MENTION_EXTENSIONS:
 			out.append(path)
 	for i in dir.get_subdir_count():
@@ -99,7 +127,9 @@ static func capture_scene_viewport() -> Image:
 
 
 static func capture_viewport(three_d: bool) -> Image:
-	var viewport: SubViewport = EditorInterface.get_editor_viewport_3d(0) if three_d else EditorInterface.get_editor_viewport_2d()
+	if not AgentTheme.has_editor():
+		return null
+	var viewport: SubViewport = AgentTheme.editor().get_editor_viewport_3d(0) if three_d else AgentTheme.editor().get_editor_viewport_2d()
 	if viewport == null:
 		return null
 	var image := viewport.get_texture().get_image()
@@ -123,21 +153,21 @@ static func _prefers_3d() -> bool:
 ## Abre un archivo del proyecto (ruta absoluta o res://) en el Script Editor o como escena.
 static func open_location(path: String, line: int = 0) -> bool:
 	var res_path := to_res_path(path)
-	if res_path.is_empty() or not FileAccess.file_exists(res_path):
+	if not AgentTheme.has_editor() or res_path.is_empty() or not FileAccess.file_exists(res_path):
 		return false
 	if res_path.get_extension() in ["tscn", "scn"]:
-		EditorInterface.open_scene_from_path(res_path)
+		AgentTheme.editor().open_scene_from_path(res_path)
 		return true
 	if not ResourceLoader.exists(res_path):  # .md, .txt…: load() escribiría un error en Output
 		return false
 	var resource := load(res_path)
 	if resource is Script:
-		EditorInterface.edit_script(resource, maxi(line, 1) if line > 0 else -1)
+		AgentTheme.editor().edit_script(resource, maxi(line, 1) if line > 0 else -1)
 		if not opens_externally(res_path):
-			EditorInterface.set_main_screen_editor("Script")
+			AgentTheme.editor().set_main_screen_editor("Script")
 		return true
 	if resource:
-		EditorInterface.edit_resource(resource)
+		AgentTheme.editor().edit_resource(resource)
 		return true
 	return false
 
@@ -145,7 +175,9 @@ static func open_location(path: String, line: int = 0) -> bool:
 ## Si `edit_script` lo abre en un editor externo (VS Code, Rider…) en lugar del Script Editor: el
 ## externo general, o el de C# (`dotnet/editor/external_editor`, 0 = ninguno) para los .cs (m14-07).
 static func opens_externally(res_path: String) -> bool:
-	var settings := EditorInterface.get_editor_settings()
+	if not AgentTheme.has_editor():
+		return false
+	var settings = AgentTheme.editor().get_editor_settings()
 	if settings.get_setting("text_editor/external/use_external_editor"):
 		return true
 	return res_path.get_extension() == "cs" and settings.has_setting("dotnet/editor/external_editor") and int(settings.get_setting("dotnet/editor/external_editor")) != 0

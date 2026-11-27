@@ -4,7 +4,7 @@ extends RefCounted
 
 ## El UndoRedo del editor: lo que la tool cambie por acá, el usuario lo deshace con Ctrl+Z. null fuera
 ## del editor (los tests).
-var undo_redo: EditorUndoRedoManager
+var undo_redo: Object  # EditorUndoRedoManager (m20-07: la app exportada no tiene las clases del editor)
 ## La carpeta del proyecto, absoluta.
 var project_dir: String = ""
 ## Nombre de la tool que corre.

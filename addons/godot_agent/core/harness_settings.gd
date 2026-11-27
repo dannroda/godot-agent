@@ -6,6 +6,7 @@ extends RefCounted
 signal changed(key: String)
 
 const AgentProfile := preload("agent_profile.gd")
+const AtomicFile := preload("atomic_file.gd")
 const LlmProfile := preload("../completion/llm/llm_profile.gd")
 const ExternalMcpServers := preload("../mcp/external_mcp_servers.gd")
 
@@ -98,14 +99,20 @@ const DEFAULT_ACCENT := Color("#f0a85a")
 ## Listas guardadas como Array de Dictionary (editables en Editor Settings); hasta 0.1.15 eran texto
 ## JSON y se convierten al cargar.
 const LIST_KEYS: PackedStringArray = [KEY_PROFILES, KEY_MCP_SERVERS, KEY_COMPLETION_LLM_PROFILES]
+const FILE_SECTION := "godot_agent"
 const DICTIONARY_LIST_HINT := "27:"  # TYPE_DICTIONARY: cada elemento, un Dictionary
 
-var _editor_settings: EditorSettings
+var _editor_settings: Object  # EditorSettings (m20-07)
 var _memory: Dictionary = {}
+## Fuera del editor (la app aparte, m20): `_memory` se lee de este ConfigFile y se guarda en cada cambio.
+var _file: String = ""
 
 
-func _init(editor_settings: EditorSettings = null) -> void:
+func _init(editor_settings: Object = null, file_path: String = "") -> void:
 	_editor_settings = editor_settings
+	if _editor_settings == null and not file_path.is_empty():
+		_file = file_path
+		_load_file()
 	if _editor_settings:
 		for key: String in LIST_KEYS:
 			_migrate_json_list(key)
@@ -167,7 +174,32 @@ func set_value(key: String, value: Variant) -> void:
 		_editor_settings.set_setting(PREFIX + key, value)
 	else:
 		_memory[key] = value
+		if not _file.is_empty():
+			_save_file()
 	changed.emit(key)
+
+
+func _load_file() -> void:
+	var config := ConfigFile.new()
+	if not FileAccess.file_exists(_file):
+		return
+	var error := config.load(_file)
+	if error != OK:
+		# Roto: se aparta para que el primer cambio no lo pise, y se arranca de cero.
+		DirAccess.rename_absolute(ProjectSettings.globalize_path(_file), ProjectSettings.globalize_path(_file) + ".broken")
+		push_error("Godot Agent: the settings in %s could not be read (%s); moved to .broken" % [_file, error_string(error)])
+		return
+	for key: String in config.get_section_keys(FILE_SECTION) if config.has_section(FILE_SECTION) else PackedStringArray():
+		_memory[key] = config.get_value(FILE_SECTION, key)
+
+
+func _save_file() -> void:
+	var config := ConfigFile.new()
+	for key: String in _memory:
+		config.set_value(FILE_SECTION, key, _memory[key])
+	var error := AtomicFile.write_text(_file, config.encode_to_text())
+	if error != OK:
+		push_error("Godot Agent: could not save the settings to %s (%s)" % [_file, error_string(error)])
 
 
 func accent_color() -> Color:

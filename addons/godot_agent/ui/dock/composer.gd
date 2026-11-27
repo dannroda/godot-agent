@@ -106,6 +106,12 @@ var recipe_names: PackedStringArray = []
 ## Desde este uso del contexto, el porcentaje de la fila se pinta de advertencia.
 const METER_SHOW_RATIO := 0.8
 var _mode_button: OptionButton
+## Los modos `pinned` como botones a la vista y «⋯» con los demás (m21-02). Es una vista del
+## desplegable, que sigue siendo el que manda; con poco ancho (nivel 1 o más) vuelve el desplegable.
+var _mode_strip: PanelContainer
+var _mode_segments: HBoxContainer
+var _mode_more: MenuButton
+var _mode_hint: Label
 var _modes: Array[Dictionary] = []
 var _current_mode: int = -1
 var _model_button: OptionButton
@@ -133,7 +139,7 @@ var _commands_button: Button
 var _spacer: Control
 ## Cuánto se compactó la fila: 0 = completa, 1 = enviar sin texto, 2 = sin medidor, 3 = sin `/`,
 ## 4 = sin `@`, 5 = sin captura, 6 = el modelo se corta con «…», 7 = también el modo (m12-52).
-const MAX_COMPACT_LEVEL := 7
+const MAX_COMPACT_LEVEL := 8
 var _compact_level: int = 0
 var _fit_queued: bool = false
 var _grip: Control
@@ -183,6 +189,8 @@ func _ready() -> void:
 			_history_index = -1)
 	_input.caret_changed.connect(_refresh_suggestions)
 	_input.focus_exited.connect(func() -> void: _close_suggestions())
+	_input.focus_entered.connect(queue_redraw)
+	_input.focus_exited.connect(queue_redraw)
 	# El TextEdit consulta primero el forwarding: el texto arrastrado lo sigue manejando él.
 	_input.set_drag_forwarding(Callable(), _can_drop_files, _drop_files)
 	add_child(_input)
@@ -262,8 +270,24 @@ func _ready() -> void:
 	_mode_button.add_theme_stylebox_override(&"hover", AgentTheme.panel(Color(_accent, 0.2), Color(_accent, 0.6), 10, 4))
 	_mode_button.add_theme_stylebox_override(&"pressed", AgentTheme.panel(Color(_accent, 0.25), Color(_accent, 0.7), 10, 4))
 	_mode_button.add_theme_stylebox_override(&"focus", StyleBoxEmpty.new())
-	_mode_button.item_selected.connect(func(index: int) -> void: mode_selected.emit(_mode_button.get_item_id(index)))
+	_mode_button.item_selected.connect(func(index: int) -> void:
+		_refresh_mode_strip()
+		mode_selected.emit(_mode_button.get_item_id(index)))
+	# El modo a la izquierda, junto a «+» (m21-10); Enviar queda solo a la derecha.
+	row.add_child(_build_mode_strip())
+	row.move_child(_mode_strip, _add_menu.get_index() + 1)
 	row.add_child(_mode_button)
+	row.move_child(_mode_button, _mode_strip.get_index() + 1)
+	# Lo que hace el modo elegido, solo en la caja de la app (m21-19): en el dock va en el tooltip.
+	_mode_hint = Label.new()
+	_mode_hint.name = "ModeHint"
+	_mode_hint.visible = false
+	_mode_hint.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	_mode_hint.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_mode_hint.clip_text = true
+	_mode_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(_mode_hint)
+	row.move_child(_mode_hint, _mode_button.get_index() + 1)
 	set_modes(_modes)
 	if _current_mode >= 0:
 		set_current_mode(_current_mode)
@@ -346,7 +370,7 @@ func _on_grip_input(event: InputEvent) -> void:
 func set_manual_height(height: float) -> void:
 	_manual_height = maxf(height, 0.0)
 	if AgentTheme.has_editor():
-		EditorInterface.get_editor_settings().set_setting(SETTING_HEIGHT, _manual_height)
+		AgentTheme.editor().get_editor_settings().set_setting(SETTING_HEIGHT, _manual_height)
 	if is_inside_tree():
 		get_tree().call_group(GROUP, &"update_height")
 	else:
@@ -356,9 +380,51 @@ func set_manual_height(height: float) -> void:
 func manual_height() -> float:
 	if _manual_height < 0.0:
 		_manual_height = 0.0
-		if AgentTheme.has_editor() and EditorInterface.get_editor_settings().has_setting(SETTING_HEIGHT):
-			_manual_height = maxf(float(EditorInterface.get_editor_settings().get_setting(SETTING_HEIGHT)), 0.0)
+		if AgentTheme.has_editor() and AgentTheme.editor().get_editor_settings().has_setting(SETTING_HEIGHT):
+			_manual_height = maxf(float(AgentTheme.editor().get_editor_settings().get_setting(SETTING_HEIGHT)), 0.0)
 	return _manual_height
+
+
+## En la ventana de la app (m21-16): chips, texto y la fila de abajo en una sola caja, como en el
+## diseño. La caja se dibuja `BOX_PAD` px por fuera del composer: el que lo contiene deja ese margen.
+const BOX_PAD := 10.0
+var _boxed := false
+
+
+func _refresh_mode_hint() -> void:
+	if _mode_hint == null:
+		return
+	var hint := ""
+	for mode: Dictionary in _modes:
+		if int(mode.get("id", -1)) == _current_mode:
+			hint = str(mode.get("hint", ""))
+	_mode_hint.text = hint
+	_mode_hint.visible = _boxed and not hint.is_empty()
+
+
+func set_boxed(on: bool) -> void:
+	_boxed = on
+	_refresh_mode_hint()
+	if on:
+		var plain := StyleBoxEmpty.new()
+		plain.content_margin_left = AgentTheme.px(2)
+		plain.content_margin_right = AgentTheme.px(2)
+		plain.content_margin_top = AgentTheme.px(4)
+		plain.content_margin_bottom = AgentTheme.px(4)
+		for state: StringName in [&"normal", &"focus", &"read_only"]:
+			_input.add_theme_stylebox_override(state, plain)
+		if not sort_children.is_connected(queue_redraw):
+			sort_children.connect(queue_redraw)
+	queue_redraw()
+
+
+func _draw() -> void:
+	if not _boxed or not is_instance_valid(_input):
+		return
+	var top := (_chips.position.y if _chips.visible else _input.position.y)
+	var pad := AgentTheme.px(BOX_PAD)
+	var border := AgentTheme.APP_BORDER.lightened(0.12) if _input.has_focus() else AgentTheme.APP_BORDER
+	draw_style_box(AgentTheme.panel(AgentTheme.APP_SURFACE, border, 12.0, 0.0), Rect2(-pad, top - pad, size.x + 2 * pad, size.y - top + 2 * pad))
 
 
 func update_height() -> void:
@@ -500,7 +566,7 @@ func set_plan_available(available: bool) -> void:
 	if available == _plan_available:
 		return
 	_plan_available = available
-	_plan_button.visible = available and _compact_level < 3
+	_plan_button.visible = available and _compact_level < 4
 	_queue_fit()
 
 
@@ -560,14 +626,107 @@ func set_modes(modes: Array[Dictionary]) -> void:
 			_mode_button.add_item(str(mode.label), int(mode.id))
 		_mode_button.set_item_tooltip(_mode_button.item_count - 1, str(mode.tooltip))
 	_mode_button.visible = not modes.is_empty()
+	_fill_mode_strip()
 	_queue_fit()
+
+
+func _build_mode_strip() -> PanelContainer:
+	_mode_strip = PanelContainer.new()
+	_mode_strip.name = "ModeStrip"
+	_mode_strip.visible = false
+	_mode_strip.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(0, 0, 0, 0.18), Color(1, 1, 1, 0.12), 8, 2))
+	_mode_segments = HBoxContainer.new()
+	_mode_segments.add_theme_constant_override(&"separation", AgentTheme.px(2))
+	_mode_strip.add_child(_mode_segments)
+	_mode_more = MenuButton.new()
+	_mode_more.flat = true
+	_mode_more.get_popup().id_pressed.connect(choose_mode)
+	_mode_segments.add_child(_mode_more)
+	return _mode_strip
+
+
+## Un botón por modo `pinned` y, si hay otros, «⋯» con el resto (con sus separadores).
+func _fill_mode_strip() -> void:
+	if _mode_strip == null:
+		return
+	for child: Node in _mode_segments.get_children():
+		if child != _mode_more:
+			_mode_segments.remove_child(child)
+			child.queue_free()
+	var menu := _mode_more.get_popup()
+	menu.clear()
+	for mode: Dictionary in _modes:
+		if mode.has("separator"):
+			menu.add_separator(str(mode.separator))
+		elif mode.get("pinned", false):
+			var button := Button.new()
+			button.text = str(mode.label)
+			button.tooltip_text = "%s: %s" % [I18n.t("Mode"), mode.tooltip]
+			button.focus_mode = Control.FOCUS_NONE
+			button.set_meta(&"mode", int(mode.id))
+			button.pressed.connect(choose_mode.bind(int(mode.id)))
+			_mode_segments.add_child(button)
+		else:
+			menu.add_item(str(mode.label), int(mode.id))
+			menu.set_item_tooltip(menu.item_count - 1, str(mode.tooltip))
+	_mode_segments.move_child(_mode_more, -1)
+	_mode_more.visible = menu.item_count > 0
+	_refresh_mode_strip()
+
+
+## Si hay botones que mostrar: con un solo modo a la vista no vale la pena, queda el desplegable.
+func _strip_usable() -> bool:
+	return _mode_segments != null and _mode_segments.get_child_count() - 1 >= 2
+
+
+## Botones o desplegable según el nivel de compactación, y el modo elegido resaltado. Un modo que no
+## está a la vista se muestra en «⋯» con su nombre, para que se vea cuál es.
+## Los modos del menú «Más», por nombre.
+func _other_mode_names() -> PackedStringArray:
+	var names: PackedStringArray = []
+	var menu := _mode_more.get_popup()
+	for i in menu.item_count:
+		if not menu.is_item_separator(i):
+			names.append(menu.get_item_text(i))
+	return names
+
+
+func _refresh_mode_strip() -> void:
+	if _mode_strip == null:
+		return
+	var strip := _compact_level == 0 and _strip_usable()
+	_mode_strip.visible = strip
+	_mode_button.visible = not _modes.is_empty() and not strip
+	var current := _mode_button.get_selected_id()
+	var in_strip := false
+	for child: Node in _mode_segments.get_children():
+		var button := child as Button
+		var selected := button != _mode_more and int(button.get_meta(&"mode", -1)) == current
+		in_strip = in_strip or selected
+		_style_mode_segment(button, selected)
+	if _mode_more.visible:
+		var other := not in_strip and _mode_button.selected >= 0
+		# «Más ▾» y no «⋯»: con los tres puntos no se entendía que ahí estaban los otros modos.
+		_mode_more.text = (_mode_button.get_item_text(_mode_button.selected) if other else I18n.t("More")) + " ▾"
+		_mode_more.tooltip_text = ("%s: %s\n" % [I18n.t("Mode"), _mode_button.get_item_tooltip(_mode_button.selected)] if other else "") + I18n.t("Other modes: %s") % ", ".join(_other_mode_names())
+		_style_mode_segment(_mode_more, other)
+
+
+func _style_mode_segment(button: Button, selected: bool) -> void:
+	var bg := Color(_accent, 0.22) if selected else Color.TRANSPARENT
+	for state: StringName in [&"normal", &"pressed", &"focus"]:
+		button.add_theme_stylebox_override(state, AgentTheme.panel(bg, Color.TRANSPARENT, 6, 4))
+	button.add_theme_stylebox_override(&"hover", AgentTheme.panel(Color(_accent, 0.3) if selected else Color(1, 1, 1, 0.08), Color.TRANSPARENT, 6, 4))
+	var color := _accent if selected else AgentTheme.font_color()
+	for state: StringName in [&"font_color", &"font_hover_color", &"font_pressed_color", &"font_focus_color"]:
+		button.add_theme_color_override(state, color)
 
 
 ## El ícono del editor `name` («TileMap»), o null si no hay uno así (o no hay editor).
 func _editor_icon(icon_name: String) -> Texture2D:
-	if icon_name.is_empty() or not Engine.is_editor_hint() or EditorInterface.get_editor_theme() == null:
+	if icon_name.is_empty() or not AgentTheme.has_editor() or AgentTheme.editor().get_editor_theme() == null:
 		return null
-	var theme := EditorInterface.get_editor_theme()
+	var theme: Theme = AgentTheme.editor().get_editor_theme()
 	return theme.get_icon(icon_name, &"EditorIcons") if theme.has_icon(icon_name, &"EditorIcons") else null
 
 
@@ -579,6 +738,8 @@ func set_current_mode(mode: int) -> void:
 	if index >= 0:
 		_mode_button.select(index)
 		_refresh_mode_tooltip()
+		_refresh_mode_strip()
+		_refresh_mode_hint()
 		_queue_fit()  # otro nombre, otro ancho
 
 
@@ -588,7 +749,7 @@ func _refresh_mode_tooltip() -> void:
 	if index < 0:
 		return
 	var tooltip := "%s: %s" % [I18n.t("Mode"), _mode_button.get_item_tooltip(index)]
-	_mode_button.tooltip_text = (_mode_button.get_item_text(index) + "\n" + tooltip) if _compact_level >= 7 else tooltip
+	_mode_button.tooltip_text = (_mode_button.get_item_text(index) + "\n" + tooltip) if _compact_level >= 8 else tooltip
 
 
 ## Elige un modo como si lo hiciera el usuario (para las pruebas del dock).
@@ -829,7 +990,7 @@ func insert_mention(path: String) -> void:
 
 ## Nodos arrastrados desde el Scene Tree (m11-08): se escriben como @ruta relativa a la escena.
 func _insert_node_mentions(nodes: Array) -> void:
-	var root := EditorInterface.get_edited_scene_root() if Engine.is_editor_hint() else null
+	var root: Node = AgentTheme.editor().get_edited_scene_root() if AgentTheme.has_editor() else null
 	var mentions: PackedStringArray = []
 	for path: Variant in nodes:
 		var node := get_tree().root.get_node_or_null(path) if path is NodePath else null
@@ -1006,7 +1167,7 @@ func _word_before_caret() -> Dictionary:
 func _update_send_button() -> void:
 	if _send_button == null:
 		return
-	var short := _compact_level >= 1
+	var short := _compact_level >= 2
 	if _is_busy():
 		_send_button.text = "■" if short else "■ " + I18n.t("Stop")
 		_send_button.tooltip_text = I18n.t("Stop the turn (Esc). Enter queues what you typed.")
@@ -1073,18 +1234,19 @@ func _fit_row() -> void:
 	_last_fit_to = level
 	_last_fit_msec = now
 	_compact_level = level
-	_meter.visible = level < 2
-	_plan_button.visible = _plan_available and level < 3
+	_refresh_mode_strip()
+	_meter.visible = level < 3
+	_plan_button.visible = _plan_available and level < 4
 	# Con overrun el texto deja de contar en el mínimo del botón: solo en el último nivel.
-	_model_button.clip_text = level >= 6
-	_model_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if level >= 6 else TextServer.OVERRUN_NO_TRIMMING
-	_model_button.custom_minimum_size.x = AgentTheme.px(60) if level >= 6 else 0.0
-	_model_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL if level >= 6 else Control.SIZE_FILL
-	_mode_button.clip_text = level >= 7
-	_mode_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if level >= 7 else TextServer.OVERRUN_NO_TRIMMING
-	_mode_button.custom_minimum_size.x = AgentTheme.px(MODE_CLIPPED_MIN) if level >= 7 else 0.0
-	_mode_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL if level >= 7 else Control.SIZE_FILL
-	_spacer.visible = level < 6
+	_model_button.clip_text = level >= 7
+	_model_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if level >= 7 else TextServer.OVERRUN_NO_TRIMMING
+	_model_button.custom_minimum_size.x = AgentTheme.px(60) if level >= 7 else 0.0
+	_model_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL if level >= 7 else Control.SIZE_FILL
+	_mode_button.clip_text = level >= 8
+	_mode_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if level >= 8 else TextServer.OVERRUN_NO_TRIMMING
+	_mode_button.custom_minimum_size.x = AgentTheme.px(MODE_CLIPPED_MIN) if level >= 8 else 0.0
+	_mode_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL if level >= 8 else Control.SIZE_FILL
+	_spacer.visible = level < 7
 	_refresh_mode_tooltip()
 	_update_send_button()
 
@@ -1119,33 +1281,36 @@ func _available_row_width() -> float:
 ## Ancho mínimo de la fila en el nivel de compactación `level`, sin importar el nivel actual.
 func _row_width(level: int) -> float:
 	var hidden: Array[Control] = []
-	if level >= 2:
-		hidden.append(_meter)
 	if level >= 3:
+		hidden.append(_meter)
+	if level >= 4:
 		hidden.append(_commands_button)
 		hidden.append(_plan_button)
-	if level >= 4:
-		hidden.append(_mention_button)
 	if level >= 5:
+		hidden.append(_mention_button)
+	if level >= 6:
 		hidden.append(_screenshot_button)
-	# Los que se esconden al compactar cuentan aunque estén ocultos ahora.
+	# Los que se esconden al compactar cuentan aunque estén ocultos ahora; el modo, con botones (nivel
+	# 0) o con el desplegable, cuenta una vez, en el lugar del desplegable.
 	var compactable: Array[Control] = [_meter]
+	if not _modes.is_empty():
+		compactable.append(_mode_button)
 	var width := 0.0
 	var count := 0
 	for child: Node in _row.get_children():
 		var control := child as Control
 		if control == _plan_button and not _plan_available:
 			continue
-		if control == null or control in hidden or (not control.visible and not control in compactable and control != _plan_button):
+		if control == null or control == _mode_strip or control in hidden or (not control.visible and not control in compactable and control != _plan_button):
 			continue
 		if control == _meter and _meter.text.is_empty():
 			continue
 		if control == _send_button:
-			width += _send_width(level >= 1)
+			width += _send_width(level >= 2)
 		elif control == _model_button:
-			width += _model_width(level >= 6)
+			width += _model_width(level >= 7)
 		elif control == _mode_button:
-			width += _option_width(_mode_button, level >= 7, MODE_CLIPPED_MIN)
+			width += _mode_strip.get_combined_minimum_size().x if level == 0 and _strip_usable() else _option_width(_mode_button, level >= 8, MODE_CLIPPED_MIN)
 		else:
 			width += control.get_combined_minimum_size().x
 		count += 1

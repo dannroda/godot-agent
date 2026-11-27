@@ -5,6 +5,8 @@ extends Node
 ## los binarios, baja el archivo, lo verifica con su sha256 (si el registro lo trae) y lo
 ## descomprime en la carpeta de datos del editor, compartida por todos los proyectos.
 
+const AgentTheme := preload("res://addons/godot_agent/ui/agent_theme.gd")
+
 ## Terminó la descarga de un binario y empieza a verificarlo y descomprimirlo.
 signal unpacking
 
@@ -22,6 +24,14 @@ const KINDS: PackedStringArray = [KIND_NPX, KIND_UVX, KIND_BINARY]
 ## editor, `<datos del editor>/godot_agent/agents`).
 var install_root: String = ""
 var _download: HTTPRequest
+
+
+## La carpeta de datos del editor sin el editor (la app aparte, m20): así comparten los agentes bajados.
+## shortcut: no sigue el modo autocontenido (._sc_) del editor; si hace falta, leerlo del binario.
+static func editor_data_dir() -> String:
+	if Engine.is_editor_hint() and Engine.has_singleton(&"EditorInterface"):
+		return AgentTheme.editor().get_editor_paths().get_data_dir()
+	return OS.get_data_dir().path_join("godot" if OS.get_name() in ["Linux", "FreeBSD", "NetBSD", "OpenBSD", "BSD"] else "Godot")
 
 
 ## `{agents: [ver parse], error}`.

@@ -132,6 +132,7 @@ static func _string(source: Dictionary, key: String, errors: PackedStringArray, 
 
 ## Los modos de la carpeta, `[{mode, errors}]` ordenados por nombre.
 static func load_dir(dir: String) -> Array[Dictionary]:
+	dir = ProjectDirs.to_fs(dir)  # fuera del editor, de la carpeta del proyecto (m20-13)
 	var result: Array[Dictionary] = []
 	if not DirAccess.dir_exists_absolute(dir):
 		return result
