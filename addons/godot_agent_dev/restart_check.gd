@@ -157,6 +157,7 @@ func _user_restart() -> void:
 			index = i
 	_expect(index >= 0, "el menú ⋯ tiene «Restart and resume»")
 	# m12-59: «Esta sesión» y después «Harness», cada una con su título; «Buscar actualizaciones» al final.
+	# En el editor, «Harness» empieza con «Abrir en una ventana aparte» (m20-13).
 	var order: PackedStringArray = []
 	for i: int in popup.item_count:
 		order.append("[%s]" % popup.get_item_text(i) if popup.is_item_separator(i) else str(popup.get_item_id(i)))
@@ -164,7 +165,7 @@ func _user_restart() -> void:
 	var harness_at := order.find("[%s]" % I18n.t("Harness"))
 	var harness_part := order.slice(harness_at + 1)
 	harness_part.erase(str(first.get(&"MORE_DIAGNOSTIC")))  # solo si el plugin da el informe (m11-80)
-	_expect(order.slice(0, 3) == expected_start and harness_at > 2 and harness_part == PackedStringArray([str(first.get(&"MORE_SETTINGS")), str(first.get(&"MORE_EXTENSIONS")), str(first.get(&"MORE_TOOLS")), str(first.get(&"MORE_UPDATES"))]), "menú ⋯: sesión y después harness · %s" % [order])
+	_expect(order.slice(0, 3) == expected_start and harness_at > 2 and harness_part == PackedStringArray([str(first.get(&"MORE_SEPARATE_WINDOW")), str(first.get(&"MORE_SETTINGS")), str(first.get(&"MORE_EXTENSIONS")), str(first.get(&"MORE_TOOLS")), str(first.get(&"MORE_UPDATES"))]), "menú ⋯: sesión y después harness · %s" % [order])
 	var update_asked: Array = []
 	var on_update := func() -> void: update_asked.append(true)
 	first.connect(&"updates_requested", on_update)
