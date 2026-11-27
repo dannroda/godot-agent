@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-27
+
 ### Added
 
 - **The agent panel outside the editor (experimental).** **⋯ → Open in a separate window** opens the same sessions in a window of their own, with a project of its own so your game's autoloads don't run in it (opened by hand with `godot --path <your project> res://addons/godot_agent/standalone/main.tscn`, it warns about them), without the editor, listed in a sidebar with each one's agent, account, mode and state: several sessions at once, each with its own agent and account (two Claude Code and two Antigravity, for example), with the same permissions, turn snapshots and file locks between tabs. Add `-- --project=<folder>` to work on another folder. If the editor is open on the same project, new sessions in the window also get the editor's Godot tools, with its unsaved state: each call is approved in the window's tab, with its mode and permission card, and then goes to the editor with a token the editor leaves in a file only you can read (agents never see it). Without the editor, agents use their own file and shell tools, and build scenes and resources with headless Godot. A bar at the top shows the folder and whether an editor is open on it. A panel next to the chat lists the files the selected session's turn is changing, live, or those of its last turn, and the files other sessions have taken. The window also runs as its own executable, exported with a Godot export template. Agents downloaded from the ACP registry are shared with the editor; agent profiles are not.
